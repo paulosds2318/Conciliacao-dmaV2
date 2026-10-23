@@ -1,0 +1,3 @@
+import { z } from "zod";
+export const createRequestSchema = z.object({ actionType: z.string().trim().min(1), contractName: z.string().trim().min(1), observations: z.string().trim().max(2000).optional() });
+export const reviewDecisionSchema = z.object({ decision: z.enum(["APPROVE", "REJECT"]), justification: z.string().trim().optional() }).superRefine((value, ctx) => { if (value.decision === "REJECT" && !value.justification) ctx.addIssue({ code: "custom", path: ["justification"], message: "Informe o motivo da recusa." }); });

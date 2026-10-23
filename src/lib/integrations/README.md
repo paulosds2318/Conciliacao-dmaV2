@@ -1,0 +1,1 @@
+Adaptadores esperados: `coral.ts`, `openrouter.ts` e `document-storage.ts`. São interfaces neste scaffold; implementar transporte, autenticação e tratamento de falhas após confirmar os contratos e a infraestrutura aprovados.

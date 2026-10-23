@@ -1,0 +1,10 @@
+/** Interface isolada para a comparação documental via OpenRouter. */
+export type DocumentComparison = {
+  matches: boolean | null;
+  confidence: number | null;
+  fields: Array<{ name: string; voucherValue?: string; contractValue?: string; match: boolean | null; evidence?: string }>;
+  summary: string;
+};
+export interface DocumentComparisonProvider {
+  compare(voucherPdf: Uint8Array, contractPdf: Uint8Array): Promise<DocumentComparison>;
+}

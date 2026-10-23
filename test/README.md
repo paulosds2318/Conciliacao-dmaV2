@@ -1,0 +1,1 @@
+A estrutura de testes fica alinhada ao projeto de referência. Nenhum teste foi criado nesta etapa; os casos devem cobrir transições de estado, obrigatoriedade dos anexos, permissões e respostas dos adaptadores.

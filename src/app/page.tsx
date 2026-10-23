@@ -1,0 +1,9 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getUser } from "@/lib/server/auth";
+export default async function HomePage() {
+  const user = await getUser();
+  if (!user) redirect("/login");
+  const isAdmin = user.role === "admin";
+  return <main className="shell"><header className="page-heading"><div className="page-heading-left"><span className="eyebrow">{isAdmin ? "Painel administrativo" : "Fluxo de contratos"}</span><h1>Concilia&ccedil;&atilde;o DMA</h1><p>{isAdmin ? "Gerencie acessos e aprove ou devolva solicita&ccedil;&otilde;es pendentes." : "Abra e acompanhe suas solicita&ccedil;&otilde;es de concilia&ccedil;&atilde;o."}</p></div><div className="form-actions">{!isAdmin && <><Link className="button primary" href="/solicitacoes/nova">Nova solicita&ccedil;&atilde;o</Link><Link className="button secondary" href="/minhas-solicitacoes">Minhas solicita&ccedil;&otilde;es</Link></>}{isAdmin && <><Link className="button primary" href="/analise">Aprovar solicita&ccedil;&otilde;es</Link><Link className="button secondary" href="/gestao-usuarios">Gest&atilde;o de usu&aacute;rios</Link><Link className="button secondary" href="/acoes-manuais">A&ccedil;&atilde;o manual por planilha</Link></>}</div></header>{isAdmin ? <section className="panel"><h2>Gest&atilde;o e aprova&ccedil;&atilde;o</h2><p>Revise as solicita&ccedil;&otilde;es enviadas pelos atendentes e gerencie os acessos da equipe.</p></section> : <section className="panel"><h2>Suas solicita&ccedil;&otilde;es</h2><p>Voc&ecirc; pode acompanhar, editar ou cancelar as solicita&ccedil;&otilde;es abertas por voc&ecirc; e corrigir as devolvidas pelo administrador.</p></section>}</main>;
+}

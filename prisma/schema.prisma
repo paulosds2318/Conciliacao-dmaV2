@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  role          String?  @default("attendant")
+  banned        Boolean? @default(false)
+  banReason     String?
+  banExpires    DateTime?
+  sessions      Session[]
+  accounts      Account[]
+  requests      DmaRequest[] @relation("Requester")
+  batchJobs     BulkActionJob[] @relation("BatchRequester")
+  reviews       ReviewDecision[] @relation("Reviewer")
+  auditEvents   AuditEvent[]
+  @@map("users")
+}
+
+model Session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  @@unique([providerId, accountId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+  @@map("verifications")
+}
+
+model DmaRequest {
+  id               String   @id @default(cuid())
+  requesterId      String
+  requester        User     @relation("Requester", fields: [requesterId], references: [id])
+  actionType       String
+  contractName     String
+  observations      String?
+  coralContractId  String?
+  status           String   @default("DRAFT")
+  version          Int      @default(1)
+  submittedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  documents        RequestDocument[]
+  analyses         AiAnalysis[]
+  decisions        ReviewDecision[]
+  executionAttempts ExecutionAttempt[]
+  auditEvents      AuditEvent[]
+  @@index([requesterId, status])
+  @@index([status, submittedAt])
+  @@map("dma_requests")
+}
+
+model BulkActionJob {
+  id             String           @id @default(cuid())
+  requesterId    String
+  requester      User             @relation("BatchRequester", fields: [requesterId], references: [id])
+  originalName   String
+  actionType     String
+  worksheetName  String
+  contractColumn String
+  status         String           @default("READY")
+  totalRows      Int
+  succeededCount Int              @default(0)
+  failedCount    Int              @default(0)
+  uncertainCount Int              @default(0)
+  skippedCount   Int              @default(0)
+  items          BulkActionItem[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  @@index([requesterId, createdAt])
+  @@index([status, createdAt])
+  @@map("bulk_action_jobs")
+}
+
+model BulkActionItem {
+  id                   String              @id @default(cuid())
+  jobId                String
+  job                  BulkActionJob       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  rowNumber            Int
+  contractNumber       String
+  status               String              @default("PENDING")
+  note                 String?
+  processingStartedAt  DateTime?
+  completedAt          DateTime?
+  attempts             BulkActionAttempt[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  @@unique([jobId, rowNumber])
+  @@index([jobId, status, rowNumber])
+  @@map("bulk_action_items")
+}
+
+model BulkActionAttempt {
+  id             String         @id @default(cuid())
+  itemId         String
+  item           BulkActionItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  attemptNumber  Int
+  idempotencyKey String         @unique
+  status         String
+  response       Json?
+  errorCode      String?
+  startedAt      DateTime       @default(now())
+  completedAt    DateTime?
+  @@unique([itemId, attemptNumber])
+  @@index([itemId, startedAt])
+  @@map("bulk_action_attempts")
+}
+
+model RequestDocument {
+  id          String   @id @default(cuid())
+  requestId   String
+  request     DmaRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  kind        String
+  storageKey  String
+  originalName String
+  mimeType    String
+  sizeBytes   Int
+  sha256      String
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  @@index([requestId, kind, version])
+  @@map("request_documents")
+}
+
+model AiAnalysis {
+  id            String   @id @default(cuid())
+  requestId     String
+  request       DmaRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requestVersion Int
+  provider      String
+  model         String
+  status        String
+  extractedData Json?
+  comparison    Json?
+  confidence    Float?
+  errorCode     String?
+  createdAt     DateTime @default(now())
+  @@index([requestId, requestVersion])
+  @@map("ai_analyses")
+}
+
+model ReviewDecision {
+  id            String   @id @default(cuid())
+  requestId     String
+  request       DmaRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  reviewerId    String
+  reviewer      User     @relation("Reviewer", fields: [reviewerId], references: [id])
+  requestVersion Int
+  decision      String
+  justification String?
+  createdAt     DateTime @default(now())
+  @@index([requestId, createdAt])
+  @@map("review_decisions")
+}
+
+model ExecutionAttempt {
+  id             String   @id @default(cuid())
+  requestId      String
+  request        DmaRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  idempotencyKey String   @unique
+  integration    String
+  status         String
+  response       Json?
+  errorCode      String?
+  createdAt      DateTime @default(now())
+  completedAt    DateTime?
+  @@index([requestId, createdAt])
+  @@map("execution_attempts")
+}
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  requestId String?
+  request   DmaRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  event     String
+  details   Json?
+  createdAt DateTime @default(now())
+  @@index([requestId, createdAt])
+  @@map("audit_events")
+}

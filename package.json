@@ -1,0 +1,44 @@
+{
+    "name": "conciliacao-dma-v2",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "next dev",
+        "build": "prisma generate && next build",
+        "start": "next start",
+        "lint": "eslint .",
+        "db:generate": "prisma generate",
+        "db:seed": "prisma db seed",
+        "db:push": "prisma db push",
+        "db:migrate:deploy": "prisma migrate deploy"
+    },
+    "prisma": {
+        "seed": "node --experimental-strip-types prisma/seed.ts"
+    },
+    "dependencies": {
+        "@better-auth/prisma-adapter": "^1.7.11",
+        "@prisma/client": "6.19.1",
+        "better-auth": "^1.7.11",
+        "exceljs": "^4.4.0",
+        "next": "16.4.0",
+        "react": "19.2.0",
+        "react-dom": "19.2.0",
+        "zod": "^4.1.0"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "eslint": "^9.0.0",
+        "eslint-config-next": "16.4.0",
+        "prisma": "6.19.1",
+        "typescript": "^5.8.0"
+    },
+    "allowScripts": {
+        "prisma@6.19.1": true,
+        "@prisma/client@6.19.1": true,
+        "@prisma/engines@6.19.1": true,
+        "unrs-resolver@1.12.2": true
+    }
+}

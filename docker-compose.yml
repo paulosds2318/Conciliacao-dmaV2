@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: conciliacao_dma
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - dma_postgres_data:/var/lib/postgresql/data
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/conciliacao_dma?schema=public
+      BETTER_AUTH_URL: http://localhost:3001
+      DOCUMENT_STORAGE_PATH: /app/private-uploads
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./private-uploads:/app/private-uploads
+    depends_on:
+      - db
+volumes:
+  dma_postgres_data:
