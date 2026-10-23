@@ -39,7 +39,6 @@ services:
 databases:
   - name: conciliacao-dma-v2-db-demo
     databaseName: conciliacao_dma
-    user: postgres
     plan: free
     region: ohio
     ipAllowList: []
