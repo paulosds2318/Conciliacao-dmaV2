@@ -1320,7 +1320,8 @@ a:hover {
 @media (max-width: 760px) {
   .dashboard-heading { align-items: flex-start; flex-direction: column; }
   .dashboard-heading-actions { width: 100%; }
-  .dashboard-heading-actions .button { width: 100%; }
+  .dashboard-heading-actions > a.button { width: 100%; }
+  .dashboard-heading-actions > .refresh-icon-button { flex: 0 0 38px; width: 38px; }
   .dashboard-metrics { grid-template-columns: 1fr; gap: 10px; }
   .dashboard-metric { min-height: 108px; }
   .dashboard-recent .panel-head { align-items: flex-start; flex-direction: column; }

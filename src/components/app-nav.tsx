@@ -17,10 +17,6 @@ export function AppNav({ coralState }: { coralState: CoralIntegrationState }) {
   const role = storedRole === "admin" ? "admin" : "attendant";
   const canCreate = role === "attendant";
   const isAdmin = role === "admin";
-  function refreshPage() {
-    window.dispatchEvent(new Event("app:refresh"));
-    router.refresh();
-  }
   const links = canCreate
     ? [
         { href: "/solicitacoes/nova", label: "Nova solicitação" },
@@ -60,12 +56,6 @@ export function AppNav({ coralState }: { coralState: CoralIntegrationState }) {
         </div>
         <div className="nav-right nav-account">
           <ThemeToggle />
-          <button type="button" className="button secondary refresh-icon-button nav-refresh-button" onClick={refreshPage} title="Atualizar dados" aria-label="Atualizar dados">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M20 7v5h-5M4 17v-5h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M5.6 9a7 7 0 0 1 11.55-2L20 12M4 12l2.85 5a7 7 0 0 0 11.55-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
           <div className="nav-user"><span className="nav-user-name">{personName(user?.name, user?.email)}</span><span className={`nav-user-role ${isAdmin ? "admin" : ""}`}>{roleLabel}</span></div>
           <button className="button secondary nav-signout" onClick={() => signOut({ fetchOptions: { onSuccess: () => { router.replace("/login"); router.refresh(); } } })}>Sair</button>
           <span className={`coral-tag coral-tag-${coralState}`} title={coralDescription} aria-label={coralLabel}>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getUser } from "@/lib/server/auth";
+import { RefreshPageButton } from "@/components/refresh-page-button";
 
 const actionLabels: Record<string, string> = {
   CONSIDERAR_DMA: "Considerar DMA",
@@ -85,6 +86,7 @@ export default async function HomePage() {
           <p>{isAdmin ? "Acompanhe as solicitações e gerencie as ações da equipe." : "Abra solicitações e acompanhe o andamento dos seus contratos."}</p>
         </div>
         <div className="dashboard-heading-actions">
+          <RefreshPageButton />
           <Link className="button primary" href={isAdmin ? "/analise" : "/solicitacoes/nova"}>
             {isAdmin ? "Aprovar solicitações" : "Nova solicitação"}
           </Link>

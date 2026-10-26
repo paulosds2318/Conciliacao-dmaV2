@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FileAttachmentField } from "@/components/file-attachment-field";
+import { RefreshPageButton } from "@/components/refresh-page-button";
 
 type SheetPreview = { name: string; headers: string[]; rows: { rowNumber: number; values: string[] }[]; rowCount: number };
 type ActionMode = "single" | "spreadsheet";
@@ -70,7 +71,7 @@ export function ManualActionForm() {
           <h1>Ação manual DMA</h1>
           <p>Execute a ação para um contrato ou importe uma planilha.</p>
         </div>
-        <Link className="button secondary" href="/">Voltar</Link>
+        <div className="page-heading-actions"><RefreshPageButton /><Link className="button secondary" href="/">Voltar</Link></div>
       </header>
       <section className="panel">
         <div className="notice">A ação manual é enviada diretamente ao Coral após a confirmação. Ela não exige voucher, análise IA ou aprovação de administrador.</div>
