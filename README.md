@@ -1,19 +1,94 @@
 # Conciliação DMA V2
 
-Aplicação web para solicitar ações DMA em contratos, anexar comprovantes, comparar documentos com OpenRouter e encaminhar a decisão para analistas. A stack segue o Módulo de Pedágio: Next.js App Router, React, TypeScript, Prisma/PostgreSQL e Better Auth.
+Aplicação web para acompanhar solicitações de consideração ou desconsideração de DMA em contratos, revisar documentos e executar ações manuais por planilha. A interface segue a identidade visual do Módulo de Pedágio. A aplicação foi construída com Next.js 16, React 19, TypeScript, Prisma, PostgreSQL e Better Auth.
 
-## Fluxo implementado
+## Funcionalidades
 
-1. O atendente autentica e seleciona Considerar DMA ou Desconsiderar DMA.
-2. Informa o número do contrato; a aplicação consulta `GET /api/rentagreement/{CONTRATO}` no Coral.
-3. Voucher e contrato são obrigatórios, validados como PDF no servidor e gravados fora da pasta pública.
-4. O backend envia os dois PDFs ao modelo configurado no OpenRouter para análise comparativa. A análise é auxiliar, nunca aprova automaticamente.
-5. O analista visualiza os PDFs e o resultado, aprova ou recusa com justificativa.
-6. A aprovação executa uma única chamada à API DMA configurada. A recusa retorna ao atendente, que pode enviar nova versão dos dois arquivos.
+### Solicitações de DMA
+
+- O atendente abre uma solicitação para **Considerar DMA** ou **Desconsiderar DMA**, informa o contrato, adiciona observações opcionais e anexa obrigatoriamente o voucher e o contrato em PDF.
+- O número do contrato pode ser consultado no Coral antes do envio.
+- Os PDFs são validados no servidor e guardados fora da pasta pública.
+- A análise via OpenRouter procura nome e CPF no contrato e compara esses dados com o voucher. Se os dados necessários não forem encontrados ou divergirem, a solicitação é recusada automaticamente e fica disponível para correção.
+- A análise da IA é auxiliar. Solicitações que passam pela análise seguem para decisão do administrador.
+- O administrador aprova ou recusa com justificativa. A aprovação inicia a ação configurada no Coral; a recusa permite ao atendente corrigir os documentos e reenviar a mesma solicitação para aprovação.
+- O atendente pode editar ou excluir solicitações pendentes de aprovação, inclusive as reabertas. Solicitações aprovadas não podem ser editadas ou excluídas pelo atendente.
+- O administrador pode excluir solicitações de qualquer status e informa o motivo. A exclusão é um arquivamento lógico, preservando o histórico de auditoria.
+
+### Perfis
+
+A aplicação tem dois perfis:
+
+- **Atendente:** cria solicitações, acompanha as que abriu, corrige solicitações recusadas, gerencia as pendentes permitidas e consulta a situação DMA.
+- **Admin:** aprova ou recusa solicitações, consulta solicitações aprovadas e arquivadas, acompanha o histórico geral, exclui solicitações informando o motivo, gerencia usuários e executa ações manuais por planilha.
+
+Não há cadastro público. O acesso é criado pelo seed inicial ou pela gestão de usuários do administrador.
+
+### Ações por planilha e consultas
+
+- Importação de planilha para executar ações DMA em vários contratos, com seleção da aba e da coluna de contratos.
+- Acompanhamento do resultado por contrato, incluindo falhas e execuções incertas, com opção de continuar ou retomar o processamento.
+- Exportação de resultados em Excel e CSV.
+- Consulta da situação DMA de um contrato individual ou por planilha, com opção de exportar o resultado.
+- Filtros, paginação e botão de atualização nas listas de solicitações.
+- Histórico de auditoria com os eventos da solicitação, incluindo reabertura, decisões, alterações e exclusão, com responsável, data e motivo quando aplicável.
+- Tema claro e escuro.
+
+## Telas principais
+
+| Caminho | Acesso e finalidade |
+| --- | --- |
+| `/login` | Autenticação |
+| `/` | Página inicial |
+| `/solicitacoes/nova` | Abertura de solicitação pelo atendente |
+| `/minhas-solicitacoes` | Solicitações abertas pelo atendente |
+| `/analise` | Fila de aprovação, solicitações aprovadas e arquivadas/excluídas; auditoria do administrador |
+| `/solicitacoes/[id]` | Detalhes, documentos, análise, histórico e ações permitidas pelo perfil |
+| `/acoes-manuais` | Importação e histórico de ações por planilha |
+| `/acoes-manuais/[id]` | Resultado por contrato e exportação da ação |
+| `/consulta-dma` | Consulta individual ou em planilha da situação DMA |
+| `/gestao-usuarios` | Gestão de usuários pelo administrador |
+
+## Requisitos
+
+- Node.js 22 ou superior
+- PostgreSQL 16 ou superior
+- Chave e modelo do OpenRouter para análise automática de documentos
+- Credenciais e endpoints do Coral para consultas e ações reais
 
 ## Configuração local
 
-Requer Node.js 22+, PostgreSQL e credenciais de integração. Copie `.env.example` para `.env` e configure o banco, segredo Better Auth, usuário e senha Coral e credenciais OpenRouter.
+1. Crie um arquivo `.env` na raiz do projeto.
+2. Preencha as variáveis necessárias, usando valores locais para desenvolvimento:
+
+```dotenv
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/conciliacao_dma?schema=public"
+BETTER_AUTH_SECRET="gere-um-segredo-aleatorio-com-pelo-menos-32-caracteres"
+BETTER_AUTH_URL="http://localhost:3000"
+
+# OpenRouter (necessário para análise documental)
+OPENROUTER_API_KEY=""
+OPENROUTER_MODEL=""
+
+# Coral: use CORAL_AUTH_TOKEN ou CORAL_USERNAME e CORAL_PASSWORD
+CORAL_AUTH_TOKEN=""
+CORAL_USERNAME=""
+CORAL_PASSWORD=""
+CORAL_CONTRACT_LOOKUP_URL="https://servicescoral.aluguefoco.com.br/api/rentagreement/{CONTRATO}"
+CORAL_API_URL=""
+
+# Usuário inicial; o seed só cria perfis com e-mail e senha preenchidos
+SEED_ADMIN_EMAIL="admin@exemplo.com"
+SEED_ADMIN_PASSWORD=""
+
+# Opcional
+MODO_TESTE_API="true"
+DOCUMENT_STORAGE_PATH="./private-uploads"
+MAX_PDF_SIZE_MB="20"
+NEXT_PUBLIC_MAX_PDF_SIZE_MB="20"
+```
+
+3. Instale dependências, gere o Prisma Client, crie/atualize o banco e prepare o usuário inicial:
 
 ```powershell
 npm install
@@ -23,21 +98,62 @@ npm run db:seed
 npm run dev
 ```
 
-O seed cria somente os perfis para os quais foram definidos pares de e-mail e senha no ambiente: `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`, `SEED_ANALYST_EMAIL`/`SEED_ANALYST_PASSWORD` e `SEED_ATTENDANT_EMAIL`/`SEED_ATTENDANT_PASSWORD`. Não existe cadastro público.
+Abra [http://localhost:3000](http://localhost:3000).
 
-`MODO_TESTE_API=true` (padrão) simula consulta e execução DMA Coral. Para produção, use `false` e configure `CORAL_API_URL`, `CORAL_USERNAME` e `CORAL_PASSWORD`. O código envia usuário e senha via HTTP Basic Auth; confirme com o Coral se esse é o formato aceito, pois a V1 documenta Bearer token. O endpoint e o formato do POST DMA ainda precisam ser confirmados pelo time Coral antes de habilitar produção. Configure `OPENROUTER_API_KEY` e um `OPENROUTER_MODEL` habilitado para entrada de PDF para processar solicitações.
+O seed aceita os pares `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` e `SEED_ATTENDANT_EMAIL`/`SEED_ATTENDANT_PASSWORD`. Para cada perfil, informe e-mail e senha. O seed atualiza o nome, o perfil e a senha de uma conta existente com o mesmo e-mail.
 
-Arquivos ficam em `DOCUMENT_STORAGE_PATH` (por padrão `./private-uploads`) e não são servidos publicamente. Configure volume persistente e política de retenção ao implantar.
+## Executar com Docker Compose
 
-## Rotas da aplicação
+O Compose sobe PostgreSQL e aplicação. O banco fica disponível na porta `5433` do computador e a aplicação em [http://localhost:3001](http://localhost:3001). O container da aplicação conecta ao banco pelo serviço `db` na porta interna `5432`.
 
-- `/login`: autenticação
-- `/`: instruções e atalhos
-- `/solicitacoes/nova`: contrato, ação e anexos
-- `/minhas-solicitacoes`: histórico do atendente
-- `/analise`: fila de analistas
-- `/solicitacoes/{id}`: documentos, análise, decisão e histórico
+Crie o `.env` com as credenciais do OpenRouter, do Coral e do administrador inicial, então execute:
 
-## Limites de integração
+```powershell
+docker compose up -d --build
+```
 
-A busca individual usa o endpoint informado para a V2. A V1 documenta token Bearer, enquanto a V2 está configurada para HTTP Basic Auth com `CORAL_USERNAME` e `CORAL_PASSWORD`; confirme com o Coral se esse formato é aceito antes de desativar o modo de teste. O formato completo da resposta de busca não foi fornecido e é normalizado por aliases comuns; revise `src/lib/server/coral.ts` quando o contrato JSON oficial estiver disponível. A URL/payload de alteração DMA de produção também não foi confirmado; a URL de exemplo permanece demonstrativa. Não há retentativa automática se o resultado da execução ficar incerto.
+Os PDFs ficam no diretório `private-uploads` montado como volume da aplicação. O banco usa o volume nomeado `dma_postgres_data`.
+
+## Variáveis de integração
+
+| Variável | Uso |
+| --- | --- |
+| `DATABASE_URL` | Conexão Prisma/PostgreSQL |
+| `BETTER_AUTH_SECRET` | Segredo para sessões e autenticação |
+| `BETTER_AUTH_URL` | URL pública da aplicação |
+| `OPENROUTER_API_KEY` | Chave privada do OpenRouter |
+| `OPENROUTER_MODEL` | Modelo configurado para receber e analisar PDFs |
+| `CORAL_AUTH_TOKEN` | Token Coral; se não tiver prefixo, o sistema adiciona `Bearer` |
+| `CORAL_USERNAME`, `CORAL_PASSWORD` | Alternativa de autenticação Coral via HTTP Basic |
+| `CORAL_CONTRACT_LOOKUP_URL` | URL de consulta; deve conter o marcador `{CONTRATO}` |
+| `CORAL_API_URL` | Endpoint usado para executar a ação DMA |
+| `MODO_TESTE_API` | `true` simula a execução DMA. A consulta do contrato também é simulada quando não há token Coral configurado |
+| `DOCUMENT_STORAGE_PATH` | Diretório privado para PDFs |
+| `MAX_PDF_SIZE_MB` | Limite de upload por PDF no servidor |
+| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | Credenciais para criar/atualizar o administrador inicial |
+| `SEED_ATTENDANT_EMAIL`, `SEED_ATTENDANT_PASSWORD` | Credenciais opcionais para criar/atualizar um atendente |
+| `FRAME_ANCESTORS` | Origens permitidas na diretiva de segurança `frame-ancestors` |
+
+Nunca publique o arquivo `.env` nem inclua credenciais reais no repositório.
+
+## Integrações e limitações
+
+- O fluxo depende dos endpoints e formatos de autenticação/resposta fornecidos pelo Coral. Confirme o contrato da API e o payload de alteração DMA com a equipe responsável antes de desativar o modo de teste.
+- Respostas HTTP de erro na consulta Coral são apresentadas ao usuário como contrato não encontrado. Se a API estiver indisponível ou a autenticação falhar, confirme a causa nos logs do serviço antes de concluir que o contrato não existe.
+- A chave e o modelo do OpenRouter precisam estar configurados para a análise automática. Sem eles, a solicitação não completa a comparação documental.
+- A ação DMA por planilha registra resultados e não repete automaticamente execuções cujo resultado seja incerto.
+- Em produção, use armazenamento persistente e banco gerenciado com política de backup e retenção. O volume local do Compose não substitui uma estratégia de backup.
+- O arquivo `render.yaml` descreve uma implantação de demonstração no Render. Configure os segredos no painel do Render e valide a persistência do banco e dos documentos conforme o plano utilizado.
+
+## Comandos úteis
+
+```powershell
+npm run dev
+npm run build
+npm run lint
+npm run db:generate
+npm run db:push
+npm run db:seed
+docker compose up -d --build
+docker compose down
+```
