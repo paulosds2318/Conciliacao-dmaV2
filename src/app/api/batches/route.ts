@@ -13,8 +13,17 @@ export async function POST(request: NextRequest) {
   const user = await isAllowed(["admin"]);
   if (!user) return apiError("Não autorizado.", 401);
   const form = await request.formData(); const file = form.get("file"); const actionType = form.get("actionType"); const worksheetName = form.get("worksheetName"); const columnIndex = Number(form.get("columnIndex"));
-  if (!(file instanceof File)) return apiError("Selecione uma planilha.");
   if (actionType !== "CONSIDERAR_DMA" && actionType !== "DESCONSIDERAR_DMA") return apiError("Selecione uma ação DMA válida.");
+  const singleContract = form.get("contractNumber");
+  if (typeof singleContract === "string") {
+    const contractNumber = singleContract.trim();
+    if (!contractNumber || contractNumber.length > 80) return apiError("Informe um número de contrato válido.");
+    try {
+      const job = await db.bulkActionJob.create({ data: { requesterId: user.id, originalName: `Ação individual - ${contractNumber}`, actionType, worksheetName: "Contrato único", contractColumn: "Contrato", totalRows: 1, items: { create: [{ rowNumber: 1, contractNumber }] } } });
+      return NextResponse.json({ jobId: job.id, totalRows: job.totalRows, skippedCount: 0 }, { status: 201 });
+    } catch (error) { return apiError(error instanceof Error ? error.message : "Falha ao preparar a ação individual."); }
+  }
+  if (!(file instanceof File)) return apiError("Selecione uma planilha ou informe um contrato.");
   if (typeof worksheetName !== "string" || !Number.isInteger(columnIndex) || columnIndex < 0) return apiError("Selecione a aba e a coluna dos contratos.");
   try {
     const sheets = await readSpreadsheet(file); const sheet = sheets.find((entry) => entry.name === worksheetName);

@@ -1,15 +1,16 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useConfirmation } from "@/components/confirmation-provider";
 type Props = { requestId: string; status: string; actionType: string; observations: string | null; canManage: boolean };
 const editableStatuses = ["PENDING_REVIEW"];
 const cancellableStatuses = ["PENDING_REVIEW"];
 export function RequestManagement({ requestId, status, actionType, observations, canManage }: Props) {
-  const router = useRouter(); const [action, setAction] = useState(actionType); const [note, setNote] = useState(observations || "");
+  const router = useRouter(); const confirmAction = useConfirmation(); const [action, setAction] = useState(actionType); const [note, setNote] = useState(observations || "");
   const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [success, setSuccess] = useState("");
   if (!canManage || (!editableStatuses.includes(status) && !cancellableStatuses.includes(status))) return null;
   async function edit() {
-    if (!window.confirm("Confirmar o salvamento das alteracoes desta solicitacao?")) return;
+    if (!await confirmAction({ title: "Salvar alterações?", description: "As observações e a ação solicitada serão atualizadas.", confirmLabel: "Salvar alterações" })) return;
     setBusy(true); setError(""); setSuccess("");
     try {
       const response = await fetch(`/api/requests/${requestId}/edit`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actionType: action, observations: note }) });
@@ -20,7 +21,7 @@ export function RequestManagement({ requestId, status, actionType, observations,
     finally { setBusy(false); }
   }
   async function cancel() {
-    if (!window.confirm("Deseja cancelar esta solicitação? Essa operação não pode ser desfeita.")) return;
+    if (!await confirmAction({ title: "Cancelar solicitação?", description: "Essa operação não pode ser desfeita.", confirmLabel: "Confirmar cancelamento", danger: true })) return;
     setBusy(true); setError(""); setSuccess("");
     try {
       const response = await fetch(`/api/requests/${requestId}/cancel`, { method: "POST" });

@@ -1,11 +1,14 @@
-﻿"use client";
+"use client";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "@/lib/auth-client";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { personName } from "@/lib/person-name";
-export function AppNav() {
+
+type CoralIntegrationState = "integrated" | "test" | "not-configured";
+
+export function AppNav({ coralState }: { coralState: CoralIntegrationState }) {
   const session = useSession();
   const router = useRouter();
   const pathname = usePathname();
@@ -13,7 +16,6 @@ export function AppNav() {
   const storedRole = (user as { role?: string } | undefined)?.role;
   const role = storedRole === "admin" ? "admin" : "attendant";
   const canCreate = role === "attendant";
-  const canManageRequests = role === "attendant";
   const isAdmin = role === "admin";
   function refreshPage() {
     window.dispatchEvent(new Event("app:refresh"));
@@ -32,6 +34,17 @@ export function AppNav() {
         { href: "/gestao-usuarios", label: "👥 Gestão de usuários" },
       ];
   const roleLabel = isAdmin ? "Perfil Admin" : "Perfil Atendente";
+  const coralLabel = coralState === "integrated"
+    ? "Coral Integrado"
+    : coralState === "test"
+      ? "Coral em teste"
+      : "Coral não configurado";
+  const coralDescription = coralState === "integrated"
+    ? "Credenciais e endpoint de ação configurados. A disponibilidade é confirmada ao consultar ou executar uma ação."
+    : coralState === "test"
+      ? "Modo de teste ativo: as ações DMA são simuladas."
+      : "Configure a autenticação e o endpoint de ação do Coral.";
+
   return (
     <nav className="app-nav" aria-label="Navegação principal">
       <div className="nav-left">
@@ -55,6 +68,10 @@ export function AppNav() {
           </button>
           <div className="nav-user"><span className="nav-user-name">{personName(user?.name, user?.email)}</span><span className={`nav-user-role ${isAdmin ? "admin" : ""}`}>{roleLabel}</span></div>
           <button className="button secondary nav-signout" onClick={() => signOut({ fetchOptions: { onSuccess: () => { router.replace("/login"); router.refresh(); } } })}>Sair</button>
+          <span className={`coral-tag coral-tag-${coralState}`} title={coralDescription} aria-label={coralLabel}>
+            <span className="coral-tag-dot" aria-hidden="true" />
+            {coralLabel}
+          </span>
         </div>
       </> : <div className="nav-right"><ThemeToggle /><Link className="button secondary" href="/login">Entrar</Link></div>}
     </nav>

@@ -75,6 +75,7 @@ CORAL_AUTH_TOKEN=""
 CORAL_USERNAME=""
 CORAL_PASSWORD=""
 CORAL_CONTRACT_LOOKUP_URL="https://servicescoral.aluguefoco.com.br/api/rentagreement/{CONTRATO}"
+CORAL_DMA_ELIGIBILITY_URL="https://servicescoral.aluguefoco.com.br/api/rentagreement/dma/eligibility"
 CORAL_API_URL=""
 
 # Usuário inicial; o seed só cria perfis com e-mail e senha preenchidos
@@ -126,7 +127,8 @@ Os PDFs ficam no diretório `private-uploads` montado como volume da aplicação
 | `CORAL_AUTH_TOKEN` | Token Coral; se não tiver prefixo, o sistema adiciona `Bearer` |
 | `CORAL_USERNAME`, `CORAL_PASSWORD` | Alternativa de autenticação Coral via HTTP Basic |
 | `CORAL_CONTRACT_LOOKUP_URL` | URL de consulta; deve conter o marcador `{CONTRATO}` |
-| `CORAL_API_URL` | Endpoint usado para executar a ação DMA |
+| `CORAL_DMA_ELIGIBILITY_URL` | Endpoint `PUT` usado após aprovação para considerar/desconsiderar DMA; se omitido, usa o domínio de `CORAL_CONTRACT_LOOKUP_URL` |
+| `CORAL_API_URL` | Alias para `CORAL_DMA_ELIGIBILITY_URL`; se não houver a variável nova, também aponta para o endpoint de ações DMA |
 | `MODO_TESTE_API` | `true` simula a execução DMA. A consulta do contrato também é simulada quando não há token Coral configurado |
 | `DOCUMENT_STORAGE_PATH` | Diretório privado para PDFs |
 | `MAX_PDF_SIZE_MB` | Limite de upload por PDF no servidor |
@@ -138,7 +140,8 @@ Nunca publique o arquivo `.env` nem inclua credenciais reais no repositório.
 
 ## Integrações e limitações
 
-- O fluxo depende dos endpoints e formatos de autenticação/resposta fornecidos pelo Coral. Confirme o contrato da API e o payload de alteração DMA com a equipe responsável antes de desativar o modo de teste.
+- Aprovações e ações manuais enviam `PUT /api/rentagreement/dma/eligibility` com `action` (`REGARD`/`DISREGARD`) e o ID interno do contrato Coral. O token Bearer precisa ter a permissão `BULK_UPDATE_DMA_ELIGIBILITY` e, conforme o guia Coral, expira em uma hora.
+- Se o Coral responder sem atualizar o contrato, a solicitação fica como falha; erros com resultado incerto não são reenviados automaticamente. Revise o histórico antes de tentar novamente.
 - Respostas HTTP de erro na consulta Coral são apresentadas ao usuário como contrato não encontrado. Se a API estiver indisponível ou a autenticação falhar, confirme a causa nos logs do serviço antes de concluir que o contrato não existe.
 - A chave e o modelo do OpenRouter precisam estar configurados para a análise automática. Sem eles, a solicitação não completa a comparação documental.
 - A ação DMA por planilha registra resultados e não repete automaticamente execuções cujo resultado seja incerto.

@@ -35,15 +35,84 @@ export async function lookupContract(number: string): Promise<ContractMatch | nu
 }
 export async function applyDmaAction(contractNumber: string, action: DmaAction) {
   if (process.env.MODO_TESTE_API === "true") return { status: "SIMULATED", response: { simulated: true } };
-  const url = process.env.CORAL_API_URL;
-  if (!url) throw Object.assign(new Error("CORAL_API_URL não configurada."), { uncertain: false });
-  const consider = action === "CONSIDERAR_DMA";
-  const authorization = coralAuthorization();
+  const contract = await lookupContract(contractNumber);
+  if (!contract) throw Object.assign(new Error("O contrato não foi localizado no Coral."), { uncertain: false });
+  if (!contract.id) throw Object.assign(new Error("O Coral não retornou o identificador interno deste contrato."), { uncertain: false });
+  return applyDmaEligibility(contract.id, action);
+}
+
+type DmaEligibilityResponse = {
+  action?: string;
+  received?: number;
+  updated?: number;
+  notFound?: number;
+  invalid?: number;
+  duplicated?: number;
+  failed?: number;
+  updatedIds?: string[];
+  errors?: Array<{ rentAgreementId?: string; reason?: string }>;
+};
+
+function dmaEligibilityUrl() {
+  const configuredUrl = process.env.CORAL_DMA_ELIGIBILITY_URL?.trim() || process.env.CORAL_API_URL?.trim();
+  if (configuredUrl) return configuredUrl;
+  const lookupTemplate = process.env.CORAL_CONTRACT_LOOKUP_URL || "https://servicescoral.aluguefoco.com.br/api/rentagreement/{CONTRATO}";
   try {
-    const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: authorization }, body: JSON.stringify({ contrato: contractNumber, considerar_dma: consider, desconsiderar_dma: !consider }), signal: AbortSignal.timeout(20000), cache: "no-store" });
-    const responseBody = await response.text();
-    if (response.ok) return { status: "SUCCEEDED", response: { httpStatus: response.status, body: responseBody.slice(0, 4000) } };
-    throw Object.assign(new Error(`Coral respondeu com HTTP ${response.status}.`), { uncertain: response.status >= 500, response: { httpStatus: response.status, body: responseBody.slice(0, 4000) } });
+    return new URL("/api/rentagreement/dma/eligibility", new URL(lookupTemplate.replace("{CONTRATO}", "contract-id")).origin).toString();
+  } catch {
+    throw Object.assign(new Error("Configure uma URL válida para a integração de ações DMA do Coral."), { uncertain: false });
+  }
+}
+
+export async function applyDmaEligibility(rentAgreementId: string, action: DmaAction) {
+  if (process.env.MODO_TESTE_API === "true") return { status: "SIMULATED", response: { simulated: true } };
+  if (!rentAgreementId.trim()) throw Object.assign(new Error("O Coral não forneceu o identificador interno do contrato."), { uncertain: false });
+
+  const token = process.env.CORAL_AUTH_TOKEN?.trim();
+  if (!token) throw Object.assign(new Error("Configure o token de autenticação do Coral para executar ações DMA."), { uncertain: false });
+  const authorization = /^Bearer\s/i.test(token) ? token : `Bearer ${token}`;
+  const url = dmaEligibilityUrl();
+  const payload = {
+    action: action === "CONSIDERAR_DMA" ? "REGARD" : "DISREGARD",
+    rentAgreementIds: [rentAgreementId.trim()],
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: authorization },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20000),
+      cache: "no-store",
+    });
+    const responseText = await response.text();
+    let responseBody: unknown = {};
+    try { responseBody = JSON.parse(responseText) as unknown; } catch { /* preserve the Coral response below */ }
+    const envelope = responseBody && typeof responseBody === "object" ? responseBody as Record<string, unknown> : {};
+    const body = envelope.data && typeof envelope.data === "object" ? envelope.data as DmaEligibilityResponse : envelope as DmaEligibilityResponse;
+    const responseData = { httpStatus: response.status, body: responseBody };
+
+    if (!response.ok) {
+      const message = response.status === 403
+        ? "O Coral recusou a ação. Verifique se o usuário tem a permissão BULK_UPDATE_DMA_ELIGIBILITY."
+        : response.status === 400 && /access token/i.test(responseText)
+          ? "A autenticação do Coral expirou ou está ausente. Renove o token e tente novamente."
+          : `O Coral respondeu com HTTP ${response.status}.`;
+      throw Object.assign(new Error(message), { uncertain: response.status >= 500, response: responseData });
+    }
+
+    if (body.updated === 1) return { status: "SUCCEEDED", response: responseData };
+
+    const matchingError = body.errors?.find((entry) => entry.rentAgreementId?.trim().toLowerCase() === rentAgreementId.trim().toLowerCase());
+    const reason = matchingError?.reason;
+    const message = reason === "NOT_FOUND" || (body.notFound ?? 0) > 0
+      ? "O contrato não foi localizado no Coral. Confira o contrato e tente novamente."
+      : reason === "INVALID_CODE" || (body.invalid ?? 0) > 0
+        ? "O identificador do contrato foi recusado pelo Coral. Confira os dados do contrato."
+        : reason === "UPDATE_FAILED" || (body.failed ?? 0) > 0
+          ? "O Coral não conseguiu atualizar a situação DMA deste contrato."
+          : "O Coral não confirmou a atualização da situação DMA.";
+    throw Object.assign(new Error(message), { uncertain: false, response: responseData });
   } catch (error) {
     if (error instanceof Error && "uncertain" in error) throw error;
     throw Object.assign(new Error("Não foi possível confirmar a resposta do Coral. A execução pode ter sido realizada; não tente novamente automaticamente."), { uncertain: true });

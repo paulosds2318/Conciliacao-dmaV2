@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
-import { applyDmaAction } from "@/lib/server/coral";
+import { applyDmaAction, applyDmaEligibility, lookupContract } from "@/lib/server/coral";
 export const maxDuration = 240;
 type Context = { params: Promise<{ id: string }> };
 const CHUNK_SIZE = 10;
@@ -50,7 +50,15 @@ export async function POST(_request: NextRequest, { params }: Context) {
     const attemptNumber = await db.bulkActionAttempt.count({ where: { itemId: item.id } }) + 1;
     const attempt = await db.bulkActionAttempt.create({ data: { itemId: item.id, attemptNumber, idempotencyKey: crypto.randomUUID(), status: "IN_PROGRESS" } });
     try {
-      const result = await applyDmaAction(item.contractNumber, job.actionType as "CONSIDERAR_DMA" | "DESCONSIDERAR_DMA");
+      const action = job.actionType as "CONSIDERAR_DMA" | "DESCONSIDERAR_DMA";
+      const result = job.worksheetName === "Contrato único"
+        ? await (async () => {
+          const contract = await lookupContract(item.contractNumber);
+          if (!contract) throw Object.assign(new Error("O contrato não foi localizado no Coral."), { uncertain: false });
+          if (!contract.id) throw Object.assign(new Error("O Coral não retornou o identificador interno deste contrato."), { uncertain: false });
+          return applyDmaEligibility(contract.id, action);
+        })()
+        : await applyDmaAction(item.contractNumber, action);
       await db.$transaction([
         db.bulkActionAttempt.update({ where: { id: attempt.id }, data: { status: result.status, response: result.response as never, completedAt: new Date() } }),
         db.bulkActionItem.update({ where: { id: item.id }, data: { status: "SUCCEEDED", completedAt: new Date() } }),

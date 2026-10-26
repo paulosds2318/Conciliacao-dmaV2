@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
-import { applyDmaAction } from "@/lib/server/coral";
+import { applyDmaEligibility } from "@/lib/server/coral";
 import { reviewDecisionSchema } from "@/lib/validators/request";
 type Context = { params: Promise<{ id: string }> };
 export async function POST(request: NextRequest, { params }: Context) {
@@ -26,6 +26,7 @@ export async function POST(request: NextRequest, { params }: Context) {
     } catch (error) { return apiError(error instanceof Error ? error.message : "A solicitação já recebeu uma decisão.", 409); }
     return NextResponse.json({ status: "REJECTED" });
   }
+  if (!item.coralContractId) return apiError("O Coral não retornou o identificador interno deste contrato. A solicitação não pode ser executada; valide o contrato novamente e reenvie.", 409);
   const attemptId = crypto.randomUUID(); const idempotencyKey = crypto.randomUUID();
   try {
     await db.$transaction(async (tx) => {
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest, { params }: Context) {
     });
   } catch (error) { return apiError(error instanceof Error ? error.message : "A solicitação já recebeu uma decisão.", 409); }
   try {
-    const result = await applyDmaAction(item.contractName, item.actionType as "CONSIDERAR_DMA" | "DESCONSIDERAR_DMA");
+    const result = await applyDmaEligibility(item.coralContractId, item.actionType as "CONSIDERAR_DMA" | "DESCONSIDERAR_DMA");
     await db.$transaction([
       db.executionAttempt.update({ where: { id: attemptId }, data: { status: result.status, response: result.response as never, completedAt: new Date() } }),
       db.dmaRequest.update({ where: { id }, data: { status: "COMPLETED" } }),

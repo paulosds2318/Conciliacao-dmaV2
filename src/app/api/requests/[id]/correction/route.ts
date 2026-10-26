@@ -4,6 +4,7 @@ import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
 import { analyzeRequest } from "@/lib/server/analyze-request";
 import { removeStoredPdf, storePdf } from "@/lib/server/storage";
+import { parseDocumentRemovalHistory } from "@/lib/server/document-removals";
 export const maxDuration = 150;
 type Context = { params: Promise<{ id: string }> };
 export async function POST(request: NextRequest, { params }: Context) {
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest, { params }: Context) {
       db.requestDocument.create({ data: { requestId: id, kind: "VOUCHER", storageKey: v.storageKey, originalName: voucher.name, mimeType: "application/pdf", sizeBytes: v.sizeBytes, sha256: v.sha256, version } }),
       db.requestDocument.create({ data: { requestId: id, kind: "CONTRACT", storageKey: c.storageKey, originalName: contract.name, mimeType: "application/pdf", sizeBytes: c.sizeBytes, sha256: c.sha256, version } }),
       db.dmaRequest.update({ where: { id }, data: { status: "ANALYZING", version, submittedAt: new Date() } }),
-      db.auditEvent.create({ data: { requestId: id, actorId: user.id, event: "REQUEST_REOPENED", details: { version, reason: reason.trim() } } }),
+      db.auditEvent.create({ data: { requestId: id, actorId: user.id, event: "REQUEST_REOPENED", details: { version, reason: reason.trim(), removedAttachments: parseDocumentRemovalHistory(form.get("removedAttachments")) } } }),
     ]);
     const analysis = await analyzeRequest(id, version, v.storageKey, c.storageKey);
     return NextResponse.json({ status: analysis.ok ? analysis.status : "ANALYSIS_FAILED", error: analysis.ok ? null : analysis.error });

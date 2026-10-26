@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
 import { lookupContract } from "@/lib/server/coral";
+import { parseDocumentRemovalHistory } from "@/lib/server/document-removals";
 import { analyzeRequest } from "@/lib/server/analyze-request";
 import { removeStoredPdf, storePdf } from "@/lib/server/storage";
 import { createRequestSchema } from "@/lib/validators/request";
@@ -27,12 +28,13 @@ export async function POST(request: NextRequest) {
   try { coral = await lookupContract(parsed.data.contractName); }
   catch (error) { return apiError(error instanceof Error ? error.message : "Falha na validacao do Coral.", 502); }
   if (!coral) return apiError("Não encontramos esse contrato no Coral. Confira o número informado ou confirme se ele existe.", 422);
+  if (!coral.id) return apiError("O Coral não retornou o identificador interno deste contrato. Não é possível abrir uma solicitação para ele agora.", 422);
   const requestId = crypto.randomUUID();
   const stored: Array<{ storageKey: string }> = [];
   try {
     const [voucherMeta, contractMeta] = await Promise.all([storePdf(requestId, "VOUCHER", voucher), storePdf(requestId, "CONTRACT", contractFile)]);
     stored.push(voucherMeta, contractMeta);
-    const created = await db.dmaRequest.create({ data: { id: requestId, requesterId: user.id, actionType: parsed.data.actionType, contractName: coral.number, observations: parsed.data.observations || null, coralContractId: coral.id, status: "ANALYZING", submittedAt: new Date(), documents: { create: [{ kind: "VOUCHER", storageKey: voucherMeta.storageKey, originalName: voucher.name, mimeType: "application/pdf", sizeBytes: voucherMeta.sizeBytes, sha256: voucherMeta.sha256 }, { kind: "CONTRACT", storageKey: contractMeta.storageKey, originalName: contractFile.name, mimeType: "application/pdf", sizeBytes: contractMeta.sizeBytes, sha256: contractMeta.sha256 }] }, auditEvents: { create: { actorId: user.id, event: "REQUEST_SUBMITTED", details: { contract: coral.number, coralSimulated: Boolean((coral.raw as { simulated?: boolean } | null)?.simulated) } } } } });
+    const created = await db.dmaRequest.create({ data: { id: requestId, requesterId: user.id, actionType: parsed.data.actionType, contractName: coral.number, observations: parsed.data.observations || null, coralContractId: coral.id, status: "ANALYZING", submittedAt: new Date(), documents: { create: [{ kind: "VOUCHER", storageKey: voucherMeta.storageKey, originalName: voucher.name, mimeType: "application/pdf", sizeBytes: voucherMeta.sizeBytes, sha256: voucherMeta.sha256 }, { kind: "CONTRACT", storageKey: contractMeta.storageKey, originalName: contractFile.name, mimeType: "application/pdf", sizeBytes: contractMeta.sizeBytes, sha256: contractMeta.sha256 }] }, auditEvents: { create: { actorId: user.id, event: "REQUEST_SUBMITTED", details: { contract: coral.number, coralSimulated: Boolean((coral.raw as { simulated?: boolean } | null)?.simulated), removedAttachments: parseDocumentRemovalHistory(form.get("removedAttachments")) } } } } });
     const analysis = await analyzeRequest(created.id, created.version, voucherMeta.storageKey, contractMeta.storageKey);
     return NextResponse.json({ requestId: created.id, status: analysis.ok ? analysis.status : "ANALYSIS_FAILED", analysis: analysis.ok ? analysis.comparison : null, error: analysis.ok ? null : analysis.error }, { status: 201 });
   } catch (error) {
