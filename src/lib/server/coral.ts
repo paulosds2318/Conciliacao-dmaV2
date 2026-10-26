@@ -11,19 +11,22 @@ function candidates(data: unknown): Record<string, unknown>[] {
 }
 function field(row: Record<string, unknown>, keys: string[]) { for (const k of keys) if (row[k] !== undefined && row[k] !== null) return String(row[k]); return ""; }
 function coralAuthorization() {
+  const token = process.env.CORAL_AUTH_TOKEN?.trim();
+  if (token) return /^Bearer\s/i.test(token) ? token : `Bearer ${token}`;
   const username = process.env.CORAL_USERNAME;
   const password = process.env.CORAL_PASSWORD;
-  if (!username || !password) throw new Error("Configure CORAL_USERNAME e CORAL_PASSWORD para acessar o Coral.");
-  if (username.includes(":")) throw new Error("CORAL_USERNAME não pode conter dois-pontos na autenticação Basic.");
+  if (!username || !password) throw new Error("Configure CORAL_AUTH_TOKEN ou CORAL_USERNAME/CORAL_PASSWORD para acessar o Coral.");
+  if (username.includes(":")) throw new Error("CORAL_USERNAME nao pode conter dois-pontos na autenticacao Basic.");
   return `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}`;
 }
 export async function lookupContract(number: string): Promise<ContractMatch | null> {
-  if (process.env.MODO_TESTE_API === "true") return { number, id: number, displayName: `Contrato ${number} (simulação)`, raw: { simulated: true } };
+  if (process.env.MODO_TESTE_API === "true" && !process.env.CORAL_AUTH_TOKEN?.trim()) return { number, id: number, displayName: `Contrato ${number} (simulacao)`, raw: { simulated: true } };
   const template = process.env.CORAL_CONTRACT_LOOKUP_URL || "https://servicescoral.aluguefoco.com.br/api/rentagreement/{CONTRATO}";
   const url = template.replace("{CONTRATO}", encodeURIComponent(number));
   const response = await fetch(url, { headers: { Accept: "application/json", Authorization: coralAuthorization() }, signal: AbortSignal.timeout(15000), cache: "no-store" });
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`Coral respondeu com HTTP ${response.status}.`);
+  if (response.status === 401 || response.status === 403) throw new Error("N\u00e3o encontramos esse contrato no Coral. Confira o n\u00famero informado ou confirme se ele existe.");
+  if (!response.ok) throw new Error("N\u00e3o encontramos esse contrato no Coral. Confira o n\u00famero informado ou confirme se ele existe.");
   const body: unknown = await response.json();
   const rows = candidates(body);
   const row = rows.find((x) => field(x, ["contrato", "contractNumber", "number", "numero", "rentAgreementNumber", "id"]).toLowerCase() === number.toLowerCase()) ?? rows[0];

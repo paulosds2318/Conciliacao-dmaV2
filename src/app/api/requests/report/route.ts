@@ -3,11 +3,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
+import { personName } from "@/lib/person-name";
 
 const statusLabels: Record<string, string> = {
   ANALYZING: "Em análise automática", PENDING_REVIEW: "Aguardando administrador",
-  REJECTED: "Recusada", CORRECTION: "Correção solicitada", APPROVED: "Aprovada pelo administrador",
-  ANALYSIS_FAILED: "Análise falhou",
+  REJECTED: "Recusada", ANALYSIS_FAILED: "Análise falhou",
   EXECUTING: "Executando no Coral", EXECUTION_UNCERTAIN: "Execução não confirmada",
   EXECUTION_FAILED: "Falha na execução", COMPLETED: "Concluída", CANCELLED: "Cancelada",
 };
@@ -26,7 +26,7 @@ export async function GET() {
     include: {
       requester: { select: { name: true, email: true } },
       analyses: { orderBy: { createdAt: "desc" }, take: 1 },
-      decisions: { orderBy: { createdAt: "desc" }, take: 1, include: { reviewer: { select: { name: true } } } },
+      decisions: { orderBy: { createdAt: "desc" }, take: 1, include: { reviewer: { select: { name: true, email: true } } } },
       executionAttempts: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
@@ -52,11 +52,11 @@ export async function GET() {
     const execution = request.executionAttempts[0];
     sheet.addRow({
       id: safeText(request.id), contract: safeText(request.contractName), action: actionLabels[request.actionType] || safeText(request.actionType),
-      status: statusLabels[request.status] || safeText(request.status), requester: safeText(request.requester.name), email: safeText(request.requester.email),
+      status: statusLabels[request.status] || safeText(request.status), requester: safeText(personName(request.requester.name, request.requester.email)), email: safeText(request.requester.email),
       observations: safeText(request.observations), summary: safeText(comparison?.summary),
       confidence: comparison?.confidence ?? analysis?.confidence == null ? "" : Math.round((comparison?.confidence ?? analysis?.confidence ?? 0) * 100),
       decision: decision?.decision === "APPROVE" ? "Aprovada" : decision?.decision === "REJECT" ? "Recusada" : "",
-      reviewer: safeText(decision?.reviewer.name), justification: safeText(decision?.justification),
+      reviewer: safeText(decision ? personName(decision.reviewer.name, decision.reviewer.email) : ""), justification: safeText(decision?.justification),
       coralResult: safeText(execution?.status || "Ainda não executada"),
       createdAt: request.createdAt.toLocaleString("pt-BR"), updatedAt: request.updatedAt.toLocaleString("pt-BR"),
     });

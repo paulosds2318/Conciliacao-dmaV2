@@ -2,8 +2,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 type Props = { requestId: string; status: string; actionType: string; observations: string | null; canManage: boolean };
-const editableStatuses = ["PENDING_REVIEW", "REJECTED", "ANALYSIS_FAILED"];
-const cancellableStatuses = ["DRAFT", "ANALYSIS_FAILED", "PENDING_REVIEW", "REJECTED", "CORRECTION"];
+const editableStatuses = ["PENDING_REVIEW"];
+const cancellableStatuses = ["PENDING_REVIEW"];
 export function RequestManagement({ requestId, status, actionType, observations, canManage }: Props) {
   const router = useRouter(); const [action, setAction] = useState(actionType); const [note, setNote] = useState(observations || "");
   const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [success, setSuccess] = useState("");

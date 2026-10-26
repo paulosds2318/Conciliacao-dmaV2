@@ -6,6 +6,6 @@ export async function GET(request: NextRequest) {
   if (!await isAllowed(["attendant", "admin"])) return apiError("Não autorizado.", 401);
   const number = request.nextUrl.searchParams.get("number")?.trim();
   if (!number || number.length > 80) return apiError("Informe um número de contrato válido.");
-  try { const contract = await lookupContract(number); return contract ? NextResponse.json({ contract }) : apiError("Contrato não encontrado no Coral.", 404); }
+  try { const contract = await lookupContract(number); return contract ? NextResponse.json({ contract }) : apiError("Não encontramos esse contrato no Coral. Confira o número informado ou confirme se ele existe.", 404); }
   catch (error) { return apiError(error instanceof Error ? error.message : "Falha ao consultar o Coral.", 502); }
 }

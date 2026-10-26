@@ -29,8 +29,8 @@ export function ThemeToggle() {
       aria-label={dark ? "Ativar tema claro" : "Ativar tema escuro"}
       title={dark ? "Ativar tema claro" : "Ativar tema escuro"}
     >
-      <span aria-hidden="true">{dark ? "☀️" : "🌙"}</span>
-      <span className="theme-toggle-label">{dark ? "Tema claro" : "Tema escuro"}</span>
+      <span aria-hidden="true">◐</span>
+      <span className="theme-toggle-label">Tema</span>
     </button>
   );
 }

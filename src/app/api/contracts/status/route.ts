@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   if (!number || number.length > 80) return apiError("Informe um número de contrato válido.");
   try {
     const contract = await lookupContract(number);
-    if (!contract) return apiError("Contrato não encontrado no Coral.", 404);
+    if (!contract) return apiError("Não encontramos esse contrato no Coral. Confira o número informado ou confirme se ele existe.", 404);
     const dma = extractDmaCurrentStatus(contract.raw);
     return NextResponse.json({ contract: { number: contract.number, displayName: contract.displayName, currentDmaStatus: dma.status, statusSourceField: dma.sourceField } });
   } catch (error) { return apiError(error instanceof Error ? error.message : "Falha ao consultar o Coral.", 502); }

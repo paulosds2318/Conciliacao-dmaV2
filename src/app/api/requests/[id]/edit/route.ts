@@ -3,13 +3,13 @@ import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
 type Context = { params: Promise<{ id: string }> };
-const editableStatuses = ["PENDING_REVIEW", "REJECTED", "ANALYSIS_FAILED"];
+const editableStatuses = ["PENDING_REVIEW"];
 export async function PATCH(request: NextRequest, { params }: Context) {
-  const user = await isAllowed(["attendant", "admin"]);
-  if (!user) return apiError("Apenas atendentes e administradores podem editar solicitacoes.", 403);
+  const user = await isAllowed(["attendant"]);
+  if (!user) return apiError("Apenas o atendente pode editar esta solicitacao.", 403);
   const { id } = await params;
   const item = await db.dmaRequest.findUnique({ where: { id }, select: { id: true, requesterId: true, status: true, actionType: true, observations: true } });
-  if (!item || (user.role === "attendant" && item.requesterId !== user.id)) return apiError("Solicitacao nao encontrada.", 404);
+  if (!item || item.requesterId !== user.id) return apiError("Solicitacao nao encontrada.", 404);
   if (!editableStatuses.includes(item.status)) return apiError("Esta solicitacao nao pode ser editada no status atual.", 409);
   const body = await request.json().catch(() => null) as { actionType?: unknown; observations?: unknown } | null;
   if (!body) return apiError("Informe os campos que deseja editar.");
