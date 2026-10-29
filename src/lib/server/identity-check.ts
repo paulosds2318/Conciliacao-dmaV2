@@ -1,6 +1,8 @@
 import type { ContractNumberCheck, DocumentIdentity } from "@/lib/integrations/openrouter";
 
 export function getIdentityRejectionReasons(identity: DocumentIdentity) {
+  // Basta CPF ou nome conferir entre voucher e contrato para seguir à aprovação do administrador.
+  if (identity.cpfMatch === true || identity.nameMatch === true) return [];
   const reasons: string[] = [];
   for (const [key, label] of [["voucher", "voucher"], ["contract", "contrato"]] as const) {
     const data = identity[key];

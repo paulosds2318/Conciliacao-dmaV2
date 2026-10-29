@@ -2,9 +2,10 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useConfirmation } from "@/components/confirmation-provider";
+import { ATTENDANT_MANAGEABLE_STATUSES } from "@/lib/services/request-policy";
 type Props = { requestId: string; status: string; actionType: string; observations: string | null; canManage: boolean };
-const editableStatuses = ["PENDING_REVIEW"];
-const cancellableStatuses = ["PENDING_REVIEW"];
+const editableStatuses = ATTENDANT_MANAGEABLE_STATUSES;
+const cancellableStatuses = ATTENDANT_MANAGEABLE_STATUSES;
 export function RequestManagement({ requestId, status, actionType, observations, canManage }: Props) {
   const router = useRouter(); const confirmAction = useConfirmation(); const [action, setAction] = useState(actionType); const [note, setNote] = useState(observations || "");
   const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [success, setSuccess] = useState("");
@@ -31,5 +32,5 @@ export function RequestManagement({ requestId, status, actionType, observations,
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Falha ao cancelar a solicitação."); }
     finally { setBusy(false); }
   }
-  return <section className="panel"><h2>Gerenciar solicitação</h2>{editableStatuses.includes(status) ? <><label className="filter-field">Ação<select value={action} onChange={(event) => setAction(event.target.value)}><option value="CONSIDERAR_DMA">Considerar DMA</option><option value="DESCONSIDERAR_DMA">Desconsiderar DMA</option></select></label><label className="filter-field">Observações<textarea value={note} onChange={(event) => setNote(event.target.value)} rows={4} maxLength={2000} /></label><p className="subcell">O contrato e os documentos validados não podem ser alterados aqui. Se houver erro nesses dados, peça ao admin para reprovar e então reenvie a correção.</p><div className="form-actions"><button className="button primary" disabled={busy || (action === actionType && note === (observations || ""))} onClick={() => void edit()}>{busy ? "Salvando…" : "Salvar alterações"}</button></div></> : <p className="subcell">Esta solicitação não pode mais ser editada no status atual.</p>}{cancellableStatuses.includes(status) && <div className="form-actions"><button className="button danger" disabled={busy} onClick={() => void cancel()}>Cancelar solicitação</button></div>}{error && <div className="notice error-notice">{error}</div>}{success && <div className="notice">{success}</div>}</section>;
+  return <section className="panel"><h2>Gerenciar solicitação</h2>{editableStatuses.includes(status) ? <><label className="filter-field">Ação<select value={action} onChange={(event) => setAction(event.target.value)}><option value="CONSIDERAR_DMA">Considerar DMA</option><option value="DESCONSIDERAR_DMA">Desconsiderar DMA</option></select></label><label className="filter-field">Observações<textarea value={note} onChange={(event) => setNote(event.target.value)} rows={4} maxLength={2000} /></label><p className="subcell">O contrato e os documentos validados não podem ser alterados aqui. Para trocar os documentos, use “Corrigir e reabrir” abaixo.</p><div className="form-actions"><button className="button primary" disabled={busy || (action === actionType && note === (observations || ""))} onClick={() => void edit()}>{busy ? "Salvando…" : "Salvar alterações"}</button></div></> : <p className="subcell">Esta solicitação não pode mais ser editada no status atual.</p>}{cancellableStatuses.includes(status) && <div className="form-actions"><button className="button danger" disabled={busy} onClick={() => void cancel()}>Cancelar solicitação</button></div>}{error && <div className="notice error-notice">{error}</div>}{success && <div className="notice">{success}</div>}</section>;
 }

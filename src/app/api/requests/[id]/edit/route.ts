@@ -2,21 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
-import { requiresVoucher } from "@/lib/services/request-policy";
+import { ATTENDANT_MANAGEABLE_STATUSES } from "@/lib/services/request-policy";
 type Context = { params: Promise<{ id: string }> };
-const editableStatuses = ["PENDING_REVIEW"];
+const editableStatuses = ATTENDANT_MANAGEABLE_STATUSES;
 export async function PATCH(request: NextRequest, { params }: Context) {
   const user = await isAllowed(["attendant"]);
   if (!user) return apiError("Apenas o atendente pode editar esta solicitacao.", 403);
   const { id } = await params;
-  const item = await db.dmaRequest.findUnique({ where: { id }, select: { id: true, requesterId: true, status: true, actionType: true, observations: true, version: true } });
+  const item = await db.dmaRequest.findUnique({ where: { id }, select: { id: true, requesterId: true, status: true, actionType: true, observations: true } });
   if (!item || item.requesterId !== user.id) return apiError("Solicitacao nao encontrada.", 404);
-  if (!editableStatuses.includes(item.status)) return apiError("Esta solicitacao nao pode ser editada no status atual.", 409);
+  if (!editableStatuses.includes(item.status)) return apiError("Esta solicitacao so pode ser editada quando for devolvida pela analise para reabertura.", 409);
   const body = await request.json().catch(() => null) as { actionType?: unknown; observations?: unknown } | null;
   if (!body) return apiError("Informe os campos que deseja editar.");
   if (body.actionType !== "CONSIDERAR_DMA" && body.actionType !== "DESCONSIDERAR_DMA") return apiError("Selecione uma acao DMA valida.");
   if (typeof body.observations !== "string" || body.observations.trim().length > 2000) return apiError("As observacoes devem ter ate 2.000 caracteres.");
-  if (requiresVoucher(body.actionType) && !await db.requestDocument.findFirst({ where: { requestId: id, version: item.version, kind: "VOUCHER" }, select: { id: true } })) return apiError("Esta solicitacao foi aberta sem voucher. Para desconsiderar DMA, abra uma nova solicitacao com voucher e contrato.", 409);
   const cleanedObservations = body.observations.trim();
   try {
     await db.$transaction(async (tx) => {

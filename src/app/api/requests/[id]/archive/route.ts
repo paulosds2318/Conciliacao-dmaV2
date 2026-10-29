@@ -2,6 +2,7 @@
 import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
+import { ATTENDANT_MANAGEABLE_STATUSES } from "@/lib/services/request-policy";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -18,7 +19,7 @@ export async function POST(request: Request, { params }: Context) {
   if (!item) return apiError("Solicitação não encontrada.", 404);
   if (item.status === "ARCHIVED") return apiError("Esta solicitação já está arquivada.", 409);
   if (actor.role === "attendant" && item.requesterId !== actor.id) return apiError("Você só pode excluir uma solicitação aberta por você.", 403);
-  if (actor.role === "attendant" && item.status !== "PENDING_REVIEW") return apiError("O atendente só pode excluir solicitações pendentes de aprovação.", 409);
+  if (actor.role === "attendant" && !ATTENDANT_MANAGEABLE_STATUSES.includes(item.status)) return apiError("O atendente só pode excluir solicitações devolvidas pela análise. Na fila de aprovação do administrador não é possível alterar a solicitação.", 409);
 
   try {
     await db.$transaction(async (tx) => {

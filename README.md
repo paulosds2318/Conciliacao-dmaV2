@@ -12,7 +12,7 @@ Aplicação web para acompanhar solicitações de consideração ou desconsidera
 - A análise via OpenRouter procura nome e CPF no contrato e compara esses dados com o voucher. Se os dados necessários não forem encontrados ou divergirem, a solicitação é recusada automaticamente e fica disponível para correção.
 - A análise da IA é auxiliar. Solicitações que passam pela análise seguem para decisão do administrador.
 - O administrador aprova ou recusa com justificativa. A aprovação inicia a ação configurada no Coral; a recusa permite ao atendente corrigir os documentos e reenviar a mesma solicitação para aprovação.
-- O atendente pode editar ou excluir solicitações pendentes de aprovação, inclusive as reabertas. Solicitações aprovadas não podem ser editadas ou excluídas pelo atendente.
+- O atendente só pode editar ou excluir solicitações devolvidas pela análise (recusadas ou com falha na análise), para então reabri-las. Enquanto a solicitação está na fila de aprovação do administrador, ou depois de aprovada, o atendente não pode alterá-la.
 - O administrador pode excluir solicitações de qualquer status e informa o motivo. A exclusão é um arquivamento lógico, preservando o histórico de auditoria.
 
 ### Perfis

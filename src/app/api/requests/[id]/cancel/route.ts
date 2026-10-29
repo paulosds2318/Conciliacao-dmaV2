@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
+import { ATTENDANT_MANAGEABLE_STATUSES } from "@/lib/services/request-policy";
 type Context = { params: Promise<{ id: string }> };
-const cancellableStatuses = ["PENDING_REVIEW"];
+const cancellableStatuses = ATTENDANT_MANAGEABLE_STATUSES;
 export async function POST(_request: Request, { params }: Context) {
   const user = await isAllowed(["attendant"]);
   if (!user) return apiError("Apenas o atendente pode cancelar esta solicitacao.", 403);
