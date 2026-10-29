@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
+import { batchAttemptErrorLabel, batchAttemptStatusLabels, batchItemStatusLabels, batchJobStatusLabels } from "@/lib/batch-status-labels";
 
 type Context = { params: Promise<{ id: string }> };
 function safeText(value: unknown) {
@@ -18,7 +19,7 @@ export async function GET(_request: Request, { params }: Context) {
     where: { id },
     include: { requester: { select: { name: true } }, items: { orderBy: { rowNumber: "asc" }, include: { attempts: { orderBy: { attemptNumber: "asc" } } } } },
   });
-  if (!job) return apiError("Ação manual não encontrada.", 404);
+  if (!job || job.deletedAt) return apiError("Ação manual não encontrada.", 404);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Conciliação DMA";
@@ -26,7 +27,7 @@ export async function GET(_request: Request, { params }: Context) {
   summary.addRows([
     ["Relatório da ação manual DMA"], ["Arquivo", safeText(job.originalName)], ["Aba", safeText(job.worksheetName)],
     ["Coluna do contrato", safeText(job.contractColumn)], ["Ação", job.actionType === "CONSIDERAR_DMA" ? "Considerar DMA" : "Desconsiderar DMA"],
-    ["Status do processamento", safeText(job.status)], ["Solicitante", safeText(job.requester.name)],
+    ["Status do processamento", batchJobStatusLabels[job.status] || "Status desconhecido"], ["Solicitante", safeText(job.requester.name)],
     ["Total", job.totalRows], ["Concluídos", job.succeededCount], ["Falhas", job.failedCount],
     ["Incertos", job.uncertainCount], ["Ignorados", job.skippedCount], ["Criado em", job.createdAt.toLocaleString("pt-BR")],
     ["Atualizado em", job.updatedAt.toLocaleString("pt-BR")],
@@ -37,13 +38,14 @@ export async function GET(_request: Request, { params }: Context) {
   details.columns = [
     { header: "Linha original", key: "row", width: 16 }, { header: "Contrato", key: "contract", width: 24 },
     { header: "Status", key: "status", width: 20 }, { header: "Tentativas", key: "attempts", width: 14 },
-    { header: "Último resultado", key: "lastStatus", width: 20 }, { header: "Código do erro", key: "error", width: 24 },
+    { header: "Último resultado", key: "lastStatus", width: 24 }, { header: "Detalhe da falha", key: "error", width: 60 },
     { header: "Observação", key: "note", width: 52 }, { header: "Processado em", key: "completedAt", width: 22 },
   ];
   for (const item of job.items) {
     const lastAttempt = item.attempts.at(-1);
-    details.addRow({ row: item.rowNumber, contract: safeText(item.contractNumber), status: safeText(item.status), attempts: item.attempts.length,
-      lastStatus: safeText(lastAttempt?.status), error: safeText(lastAttempt?.errorCode), note: safeText(item.note),
+    details.addRow({ row: item.rowNumber, contract: safeText(item.contractNumber), status: batchItemStatusLabels[item.status] || "Status desconhecido", attempts: item.attempts.length,
+      lastStatus: lastAttempt ? batchAttemptStatusLabels[lastAttempt.status] || "Status desconhecido" : "Sem tentativa",
+      error: safeText(lastAttempt?.errorCode ? batchAttemptErrorLabel(lastAttempt.errorCode) : "Sem falha registrada"), note: safeText(item.note),
       completedAt: item.completedAt?.toLocaleString("pt-BR") || "" });
   }
   details.views = [{ state: "frozen", ySplit: 1 }];

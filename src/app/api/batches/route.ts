@@ -3,16 +3,17 @@ import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
 import { MAX_SPREADSHEET_ROWS, readSpreadsheet } from "@/lib/server/spreadsheet";
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await isAllowed(["admin"]);
   if (!user) return apiError("Não autorizado.", 401);
-  const jobs = await db.bulkActionJob.findMany({ where: user.role === "admin" ? {} : { requesterId: user.id }, orderBy: { createdAt: "desc" }, include: { requester: { select: { name: true } }, _count: { select: { items: true } } } });
+  const includeArchived = request.nextUrl.searchParams.get("includeArchived") === "true";
+  const jobs = await db.bulkActionJob.findMany({ where: { deletedAt: includeArchived ? { not: null } : null }, orderBy: { createdAt: "desc" }, include: { requester: { select: { name: true } }, _count: { select: { items: true } } } });
   return NextResponse.json({ jobs });
 }
 export async function POST(request: NextRequest) {
   const user = await isAllowed(["admin"]);
   if (!user) return apiError("Não autorizado.", 401);
-  const form = await request.formData(); const file = form.get("file"); const actionType = form.get("actionType"); const worksheetName = form.get("worksheetName"); const columnIndex = Number(form.get("columnIndex"));
+  const form = await request.formData(); const file = form.get("file"); const actionType = form.get("actionType"); const worksheetName = form.get("worksheetName"); const columnIndex = Number(form.get("columnIndex")); const hasHeader = form.get("hasHeader") !== "false";
   if (actionType !== "CONSIDERAR_DMA" && actionType !== "DESCONSIDERAR_DMA") return apiError("Selecione uma ação DMA válida.");
   const singleContract = form.get("contractNumber");
   if (typeof singleContract === "string") {
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
   if (!(file instanceof File)) return apiError("Selecione uma planilha ou informe um contrato.");
   if (typeof worksheetName !== "string" || !Number.isInteger(columnIndex) || columnIndex < 0) return apiError("Selecione a aba e a coluna dos contratos.");
   try {
-    const sheets = await readSpreadsheet(file); const sheet = sheets.find((entry) => entry.name === worksheetName);
+    const sheets = await readSpreadsheet(file, hasHeader); const sheet = sheets.find((entry) => entry.name === worksheetName);
     if (!sheet || !sheet.headers[columnIndex]) return apiError("Aba ou coluna não encontrada na planilha.");
     if (sheet.rowCount > MAX_SPREADSHEET_ROWS) return apiError(`A planilha excede o limite de ${MAX_SPREADSHEET_ROWS} linhas.`);
     const rows = sheet.rows.map(({ rowNumber, values }) => ({ rowNumber, contractNumber: values[columnIndex]?.trim() || "", status: "PENDING", note: null as string | null }));

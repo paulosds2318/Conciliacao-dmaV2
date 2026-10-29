@@ -1334,6 +1334,9 @@ a:hover {
 .coral-tag-not-configured { color: var(--muted); background: var(--line-subtle); border-color: var(--line); }
 .coral-tag-not-configured .coral-tag-dot { background: var(--muted-light); box-shadow: none; }
 :root[data-theme="dark"] .coral-tag-test { color: #F7C66A; background: #392F1E; border-color: #6B5228; }
+.spreadsheet-header-toggle { display: flex; align-items: center; gap: 9px; color: var(--ink-secondary); font-size: 13px; }
+.spreadsheet-header-toggle input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--foco-red); }
+
 :root[data-theme="dark"] .coral-tag-not-configured { color: var(--muted); background: var(--bg-card); border-color: var(--line); }
 @media (max-width: 760px) {
   .nav-account .coral-tag { padding: 5px 8px; font-size: 9px; }

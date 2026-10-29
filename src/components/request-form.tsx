@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useConfirmation } from "@/components/confirmation-provider";
 import { useRouter } from "next/navigation";
 import { FileAttachmentField } from "@/components/file-attachment-field";
+import { DOCUMENT_ACCEPT, DOCUMENT_FORMATS_LABEL } from "@/lib/document-types";
+import { requiresVoucher } from "@/lib/services/request-policy";
 
 type Removal = { kind: string; fileName: string; confirmed: true };
 
@@ -15,6 +17,7 @@ export function RequestForm() {
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [actionType, setActionType] = useState("");
   const [voucherFile, setVoucherFile] = useState<File | null>(null);
   const [contractFile, setContractFile] = useState<File | null>(null);
   const [removedAttachments, setRemovedAttachments] = useState<Removal[]>([]);
@@ -40,11 +43,13 @@ export function RequestForm() {
     const data = new FormData(form);
     const voucher = data.get("voucher");
     const pdfContract = data.get("contract");
-    if (!(voucher instanceof File) || !voucher.size || !(pdfContract instanceof File) || !pdfContract.size) {
-      setMessage("Anexe o voucher e o contrato. Os dois arquivos são obrigatórios."); return;
+    if (!(pdfContract instanceof File) || !pdfContract.size) { setMessage("Anexe o contrato."); return; }
+    if (needsVoucher && (!(voucher instanceof File) || !voucher.size)) {
+      setMessage("Anexe o voucher e o contrato. Os dois arquivos são obrigatórios para desconsiderar DMA."); return;
     }
+    if (!needsVoucher) data.delete("voucher");
     if (!valid) { setMessage("Valide o contrato no Coral antes de enviar."); return; }
-    if (!await confirmAction({ title: "Enviar solicitação?", description: "Os dois PDFs serão analisados e a solicitação seguirá para decisão do administrador.", confirmLabel: "Enviar para análise" })) return;
+    if (!await confirmAction({ title: "Enviar solicitação?", description: needsVoucher ? "Os dois documentos serão analisados e a solicitação seguirá para decisão do administrador." : "O número do contrato anexado será conferido com o contrato validado no Coral e a solicitação seguirá para decisão do administrador.", confirmLabel: "Enviar para análise" })) return;
     data.set("removedAttachments", JSON.stringify(removedAttachments));
     setBusy(true);
     try {
@@ -57,27 +62,28 @@ export function RequestForm() {
     } finally { setBusy(false); }
   }
 
-  const pdfAccept = "application/pdf,.pdf";
+  const pdfAccept = DOCUMENT_ACCEPT;
+  const needsVoucher = requiresVoucher(actionType);
   return (
     <main className="shell">
       <header className="page-heading">
-        <div className="page-heading-left"><span className="eyebrow">Atendente</span><h1>Nova solicitação</h1><p>Escolha a ação, valide o contrato no Coral e anexe os dois PDFs.</p></div>
+        <div className="page-heading-left"><span className="eyebrow">Atendente</span><h1>Nova solicitação</h1><p>Escolha a ação, valide o contrato no Coral e anexe os documentos.</p></div>
         <Link className="button secondary" href="/">Voltar</Link>
       </header>
       <section className="panel">
-        <div className="notice">Voucher e contrato em PDF são obrigatórios. O administrador tomará a decisão final após a análise automática.</div>
+        <div className="notice">Desconsiderar DMA exige voucher e contrato; Considerar DMA exige somente o contrato ({DOCUMENT_FORMATS_LABEL}). O administrador tomará a decisão final.</div>
         <form className="request-form" onSubmit={submit}>
-          <label className="filter-field">Ação desejada<select name="actionType" defaultValue="" required><option value="" disabled>Selecione uma ação</option><option value="CONSIDERAR_DMA">Considerar DMA</option><option value="DESCONSIDERAR_DMA">Desconsiderar DMA</option></select></label>
+          <label className="filter-field">Ação desejada<select name="actionType" value={actionType} onChange={(event) => setActionType(event.target.value)} required><option value="" disabled>Selecione uma ação</option><option value="CONSIDERAR_DMA">Considerar DMA</option><option value="DESCONSIDERAR_DMA">Desconsiderar DMA</option></select></label>
           <label className="filter-field">Observações (opcional)<textarea name="observations" rows={4} maxLength={2000} placeholder="Inclua contexto ou detalhes importantes para a análise." /></label>
           <p className="subcell">Máximo de 2.000 caracteres.</p>
           <label className="filter-field">Número do contrato<input name="contractName" value={contract} onChange={(event) => { setContract(event.target.value); setValid(false); setMessage(""); }} placeholder="Digite o número do contrato" required /></label>
           <button className="button secondary" type="button" onClick={() => void validateContract()} disabled={checking || !contract.trim()}>{checking ? "Consultando..." : "Validar contrato no Coral"}</button>
           {message && <div className={`notice ${valid ? "" : "error-notice"}`}>{message}</div>}
           <div className="filter-bar">
-            <FileAttachmentField label="Voucher (PDF)" name="voucher" accept={pdfAccept} file={voucherFile} required onFileChange={setVoucherFile} onRemove={(file) => setRemovedAttachments((current) => [...current, { kind: "VOUCHER", fileName: file.name, confirmed: true }])} />
-            <FileAttachmentField label="Contrato (PDF)" name="contract" accept={pdfAccept} file={contractFile} required onFileChange={setContractFile} onRemove={(file) => setRemovedAttachments((current) => [...current, { kind: "CONTRACT", fileName: file.name, confirmed: true }])} />
+            {needsVoucher && <FileAttachmentField label="Voucher (PDF ou imagem)" name="voucher" accept={pdfAccept} file={voucherFile} required onFileChange={setVoucherFile} onRemove={(file) => setRemovedAttachments((current) => [...current, { kind: "VOUCHER", fileName: file.name, confirmed: true }])} />}
+            <FileAttachmentField label="Contrato (PDF ou imagem)" name="contract" accept={pdfAccept} file={contractFile} required onFileChange={setContractFile} onRemove={(file) => setRemovedAttachments((current) => [...current, { kind: "CONTRACT", fileName: file.name, confirmed: true }])} />
           </div>
-          <p className="subcell">Limite: {process.env.NEXT_PUBLIC_MAX_PDF_SIZE_MB || "20"} MB por arquivo. A validade real do PDF será conferida no servidor.</p>
+          <p className="subcell">Limite: {process.env.NEXT_PUBLIC_MAX_PDF_SIZE_MB || "20"} MB por arquivo. Formatos aceitos: {DOCUMENT_FORMATS_LABEL}. O formato real será conferido no servidor.</p>
           <button className="button primary" type="submit" disabled={busy || !valid}>{busy ? "Enviando e analisando…" : "Enviar para análise"}</button>
         </form>
       </section>

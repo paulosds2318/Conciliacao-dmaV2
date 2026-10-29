@@ -29,7 +29,7 @@ export function AppNav({ coralState }: { coralState: CoralIntegrationState }) {
         { href: "/consulta-dma", label: "Situação DMA" },
         { href: "/gestao-usuarios", label: "👥 Gestão de usuários" },
       ];
-  const roleLabel = isAdmin ? "Perfil Admin" : "Perfil Atendente";
+  const roleLabel = isAdmin ? "Perfil Administrador" : "Perfil Atendente";
   const coralLabel = coralState === "integrated"
     ? "Coral Integrado"
     : coralState === "test"

@@ -4,13 +4,10 @@ import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
 import { personName } from "@/lib/person-name";
+import { REQUEST_STATUS_LABELS } from "@/lib/services/request-status";
+import { executionStatusLabels } from "@/lib/batch-status-labels";
 
-const statusLabels: Record<string, string> = {
-  ANALYZING: "Em análise automática", PENDING_REVIEW: "Aguardando administrador",
-  REJECTED: "Recusada", ANALYSIS_FAILED: "Análise falhou",
-  EXECUTING: "Executando no Coral", EXECUTION_UNCERTAIN: "Execução não confirmada",
-  EXECUTION_FAILED: "Falha na execução", COMPLETED: "Concluída", CANCELLED: "Cancelada",
-};
+const statusLabels: Record<string, string> = REQUEST_STATUS_LABELS;
 const actionLabels: Record<string, string> = { CONSIDERAR_DMA: "Considerar DMA", DESCONSIDERAR_DMA: "Desconsiderar DMA" };
 function safeText(value: unknown) {
   const text = value == null ? "" : String(value);
@@ -52,12 +49,12 @@ export async function GET() {
     const execution = request.executionAttempts[0];
     sheet.addRow({
       id: safeText(request.id), contract: safeText(request.contractName), action: actionLabels[request.actionType] || safeText(request.actionType),
-      status: statusLabels[request.status] || safeText(request.status), requester: safeText(personName(request.requester.name, request.requester.email)), email: safeText(request.requester.email),
+      status: statusLabels[request.status] || "Status não reconhecido", requester: safeText(personName(request.requester.name, request.requester.email)), email: safeText(request.requester.email),
       observations: safeText(request.observations), summary: safeText(comparison?.summary),
       confidence: comparison?.confidence ?? analysis?.confidence == null ? "" : Math.round((comparison?.confidence ?? analysis?.confidence ?? 0) * 100),
       decision: decision?.decision === "APPROVE" ? "Aprovada" : decision?.decision === "REJECT" ? "Recusada" : "",
       reviewer: safeText(decision ? personName(decision.reviewer.name, decision.reviewer.email) : ""), justification: safeText(decision?.justification),
-      coralResult: safeText(execution?.status || "Ainda não executada"),
+      coralResult: execution ? executionStatusLabels[execution.status] || "Resultado não identificado" : "Ainda não executada",
       createdAt: request.createdAt.toLocaleString("pt-BR"), updatedAt: request.updatedAt.toLocaleString("pt-BR"),
     });
   }

@@ -1,13 +1,15 @@
 import { db } from "@/lib/db";
 import { comparePdfs } from "@/lib/server/openrouter";
-import { getIdentityRejectionReasons } from "@/lib/server/identity-check";
+import { getContractNumberRejectionReasons, getIdentityRejectionReasons } from "@/lib/server/identity-check";
 import { getStoredPdf } from "@/lib/server/storage";
 
-export async function analyzeRequest(requestId: string, version: number, voucherKey: string, contractKey: string) {
+/** Sem voucher (Considerar DMA) a IA confere somente o número do contrato anexado contra o contrato validado no Coral. */
+export async function analyzeRequest(requestId: string, version: number, voucherKey: string | null, contractKey: string) {
   try {
-    const [voucher, contract] = await Promise.all([getStoredPdf(voucherKey), getStoredPdf(contractKey)]);
-    const comparison = await comparePdfs(voucher, contract);
-    const rejectionReasons = getIdentityRejectionReasons(comparison.identity);
+    const { contractName } = await db.dmaRequest.findUniqueOrThrow({ where: { id: requestId }, select: { contractName: true } });
+    const [voucher, contract] = await Promise.all([voucherKey ? getStoredPdf(voucherKey) : null, getStoredPdf(contractKey)]);
+    const comparison = await comparePdfs(voucher, contract, contractName);
+    const rejectionReasons = [...getContractNumberRejectionReasons(comparison.contractNumber), ...(voucher ? getIdentityRejectionReasons(comparison.identity) : [])];
     const status = rejectionReasons.length ? "REJECTED" : "PENDING_REVIEW";
     const analysisStatus = rejectionReasons.length ? "AUTO_REJECTED" : "COMPLETED";
     const savedComparison = rejectionReasons.length

@@ -79,7 +79,7 @@ model DmaRequest {
   contractName     String
   observations      String?
   coralContractId  String?
-  status           String   @default("DRAFT")
+  status           String   @default("ANALYZING")
   version          Int      @default(1)
   submittedAt      DateTime?
   createdAt        DateTime @default(now())
@@ -108,11 +108,17 @@ model BulkActionJob {
   failedCount    Int              @default(0)
   uncertainCount Int              @default(0)
   skippedCount   Int              @default(0)
+  deletedAt      DateTime?
+  deletedById    String?
+  deletedByName  String?
+  deletedByEmail String?
+  deletionReason String?
   items          BulkActionItem[]
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   @@index([requesterId, createdAt])
   @@index([status, createdAt])
+  @@index([deletedAt, createdAt])
   @@map("bulk_action_jobs")
 }
 

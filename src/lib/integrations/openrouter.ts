@@ -6,13 +6,17 @@ export type DocumentIdentity = {
   nameMatch: boolean | null;
 };
 
+/** Número lido no contrato anexado comparado ao contrato validado no Coral. */
+export type ContractNumberCheck = { expected: string; found: string | null; match: boolean | null };
+
 export type DocumentComparison = {
   matches: boolean | null;
+  contractNumber?: ContractNumberCheck;
   confidence: number | null;
   identity: DocumentIdentity;
   fields: Array<{ name: string; voucherValue?: string; contractValue?: string; match: boolean | null; evidence?: string }>;
   summary: string;
 };
 export interface DocumentComparisonProvider {
-  compare(voucherPdf: Uint8Array, contractPdf: Uint8Array): Promise<DocumentComparison>;
+  compare(voucherPdf: Uint8Array | null, contractPdf: Uint8Array, expectedContractNumber: string): Promise<DocumentComparison>;
 }

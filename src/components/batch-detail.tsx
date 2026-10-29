@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConfirmation } from "@/components/confirmation-provider";
-import { batchItemStatusLabels, batchJobStatusLabels } from "@/lib/batch-status-labels";
+import { batchAttemptErrorLabel, batchItemStatusLabels, batchJobStatusLabels } from "@/lib/batch-status-labels";
 type Attempt = { attemptNumber: number; status: string; errorCode: string | null };
 type Item = { id: string; rowNumber: number; contractNumber: string; status: string; note: string | null; attempts: Attempt[] };
 type Job = { id: string; originalName: string; actionType: string; worksheetName: string; contractColumn: string; status: string; totalRows: number; succeededCount: number; failedCount: number; uncertainCount: number; skippedCount: number; items: Item[] };
@@ -37,6 +37,6 @@ export function BatchDetail() {
     {busy && <div className="notice">Processamento sequencial ativo. Contratos já confirmados não serão enviados novamente; esta tela pode ser pausada após o bloco atual.</div>}
     <section className="summary batch-summary"><article><span>Concluídos</span><strong>{job.succeededCount}</strong></article><article><span>Falhas</span><strong>{job.failedCount}</strong></article><article><span>Incertos</span><strong>{job.uncertainCount}</strong></article><article><span>Ignorados</span><strong>{job.skippedCount}</strong></article></section>
     {(job.failedCount > 0 || job.uncertainCount > 0) && !busy && <section className="panel"><h2>Nova tentativa</h2><p>Falhas definitivas podem ser reenviadas. Resultados incertos exigem confirmação explícita porque a ação pode já ter sido aplicada no Coral.</p><div className="form-actions">{job.failedCount > 0 && <button className="button secondary" onClick={() => void retry("FAILED")}>Tentar novamente as falhas ({job.failedCount})</button>}{job.uncertainCount > 0 && <button className="button danger" onClick={() => void retry("UNCERTAIN")}>Confirmar reenvio dos incertos ({job.uncertainCount})</button>}</div></section>}
-    <section className="panel"><div className="table-wrap"><table><thead><tr><th>Linha</th><th>Contrato</th><th>Status</th><th>Tentativas</th><th>Detalhe</th></tr></thead><tbody>{job.items.map((item) => <tr key={item.id}><td>{item.rowNumber}</td><td className="strong">{item.contractNumber}</td><td><span className="status status-pendente">{batchItemStatusLabels[item.status] || "Status desconhecido"}</span></td><td>{item.attempts.length}</td><td>{item.note || item.attempts.at(-1)?.errorCode || "—"}</td></tr>)}</tbody></table></div></section>
+    <section className="panel"><div className="table-wrap"><table><thead><tr><th>Linha</th><th>Contrato</th><th>Status</th><th>Tentativas</th><th>Detalhe</th></tr></thead><tbody>{job.items.map((item) => <tr key={item.id}><td>{item.rowNumber}</td><td className="strong">{item.contractNumber}</td><td><span className="status status-pendente">{batchItemStatusLabels[item.status] || "Status desconhecido"}</span></td><td>{item.attempts.length}</td><td>{item.note || (item.attempts.at(-1)?.errorCode ? batchAttemptErrorLabel(item.attempts.at(-1)?.errorCode) : "—")}</td></tr>)}</tbody></table></div></section>
   </main>;
 }

@@ -1,4 +1,4 @@
-import type { DocumentIdentity } from "@/lib/integrations/openrouter";
+import type { ContractNumberCheck, DocumentIdentity } from "@/lib/integrations/openrouter";
 
 export function getIdentityRejectionReasons(identity: DocumentIdentity) {
   const reasons: string[] = [];
@@ -8,4 +8,10 @@ export function getIdentityRejectionReasons(identity: DocumentIdentity) {
     if (!data.cpf?.trim()) reasons.push(`CPF do cliente ausente ou ilegivel no ${label}.`);
   }
   return [...new Set(reasons)];
+}
+
+export function getContractNumberRejectionReasons(check: ContractNumberCheck | undefined) {
+  if (!check?.found) return ["Numero do contrato nao localizado no contrato anexado. Confira se o arquivo e o contrato correto e esta legivel."];
+  if (check.match === false) return [`O contrato anexado e o ${check.found}, mas o contrato validado no Coral e o ${check.expected}. Anexe o contrato correto.`];
+  return [];
 }

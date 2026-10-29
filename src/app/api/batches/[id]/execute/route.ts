@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
 import { applyDmaAction, applyDmaEligibility, lookupContract } from "@/lib/server/coral";
+import { batchJobStatusLabels } from "@/lib/batch-status-labels";
 export const maxDuration = 240;
 type Context = { params: Promise<{ id: string }> };
 const CHUNK_SIZE = 10;
@@ -24,7 +25,7 @@ export async function POST(_request: NextRequest, { params }: Context) {
   if (!user) return apiError("Não autorizado.", 401);
   const { id } = await params;
   let job = await db.bulkActionJob.findUnique({ where: { id } });
-  if (!job || (user.role !== "admin" && job.requesterId !== user.id)) return apiError("Ação manual não encontrada.", 404);
+  if (!job || job.deletedAt) return apiError("Ação manual não encontrada.", 404);
   if (job.status === "RUNNING") {
     if (Date.now() - job.updatedAt.getTime() < STALE_RUN_MS) return apiError("Esta planilha já está sendo processada.", 409);
     await db.$transaction(async (tx) => {
@@ -38,11 +39,13 @@ export async function POST(_request: NextRequest, { params }: Context) {
     job = await db.bulkActionJob.findUnique({ where: { id } });
     if (!job) return apiError("Ação manual não encontrada.", 404);
   }
-  if (!["READY", "PAUSED", "COMPLETED_WITH_ERRORS"].includes(job.status)) return apiError(`Esta planilha não pode ser executada no status ${job.status}.`, 409);
-  const lock = await db.bulkActionJob.updateMany({ where: { id, status: job.status }, data: { status: "RUNNING", updatedAt: new Date() } });
+  if (!["READY", "PAUSED", "COMPLETED_WITH_ERRORS"].includes(job.status)) return apiError(`Esta planilha não pode ser executada no status “${batchJobStatusLabels[job.status] || "desconhecido"}”.`, 409);
+  const lock = await db.bulkActionJob.updateMany({ where: { id, status: job.status, deletedAt: null }, data: { status: "RUNNING", updatedAt: new Date() } });
   if (!lock.count) return apiError("Esta planilha já está sendo processada.", 409);
 
   for (let index = 0; index < CHUNK_SIZE; index++) {
+    const activeJob = await db.bulkActionJob.findFirst({ where: { id, deletedAt: null, status: "RUNNING" }, select: { id: true } });
+    if (!activeJob) break;
     const item = await db.bulkActionItem.findFirst({ where: { jobId: id, status: "PENDING" }, orderBy: { rowNumber: "asc" } });
     if (!item) break;
     const claimed = await db.bulkActionItem.updateMany({ where: { id: item.id, status: "PENDING" }, data: { status: "RUNNING", processingStartedAt: new Date() } });
@@ -50,6 +53,14 @@ export async function POST(_request: NextRequest, { params }: Context) {
     const attemptNumber = await db.bulkActionAttempt.count({ where: { itemId: item.id } }) + 1;
     const attempt = await db.bulkActionAttempt.create({ data: { itemId: item.id, attemptNumber, idempotencyKey: crypto.randomUUID(), status: "IN_PROGRESS" } });
     try {
+      const stillActive = await db.bulkActionJob.findFirst({ where: { id, deletedAt: null, status: "RUNNING" }, select: { id: true } });
+      if (!stillActive) {
+        await db.$transaction([
+          db.bulkActionAttempt.update({ where: { id: attempt.id }, data: { status: "CANCELLED", errorCode: "JOB_ARCHIVED_BEFORE_CORAL_CALL", completedAt: new Date() } }),
+          db.bulkActionItem.update({ where: { id: item.id }, data: { status: "SKIPPED", note: "Ação arquivada antes do envio deste contrato ao Coral", completedAt: new Date() } }),
+        ]);
+        break;
+      }
       const action = job.actionType as "CONSIDERAR_DMA" | "DESCONSIDERAR_DMA";
       const result = job.worksheetName === "Contrato único"
         ? await (async () => {

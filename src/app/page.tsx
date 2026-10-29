@@ -3,23 +3,13 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getUser } from "@/lib/server/auth";
 import { RefreshPageButton } from "@/components/refresh-page-button";
+import { REQUEST_STATUS_LABELS } from "@/lib/services/request-status";
 
 const actionLabels: Record<string, string> = {
   CONSIDERAR_DMA: "Considerar DMA",
   DESCONSIDERAR_DMA: "Desconsiderar DMA",
 };
-const statusLabels: Record<string, string> = {
-  DRAFT: "Rascunho",
-  ANALYZING: "Em análise",
-  PENDING_REVIEW: "Aguardando aprovação",
-  REJECTED: "Correção disponível",
-  APPROVED: "Aprovada",
-  EXECUTING: "Executando",
-  COMPLETED: "Concluída",
-  EXECUTION_FAILED: "Falha na execução",
-  CANCELLED: "Cancelada",
-  ARCHIVED: "Arquivada",
-};
+const statusLabels: Record<string, string> = REQUEST_STATUS_LABELS;
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
@@ -34,9 +24,9 @@ export default async function HomePage() {
   const [total, pending, completed, archived, corrections, recent] = await Promise.all([
     db.dmaRequest.count({ where: scope }),
     db.dmaRequest.count({ where: { ...scope, status: "PENDING_REVIEW" } }),
-    db.dmaRequest.count({ where: { ...scope, status: { in: ["APPROVED", "EXECUTING", "COMPLETED", "EXECUTION_FAILED"] } } }),
+    db.dmaRequest.count({ where: { ...scope, status: { in: ["EXECUTING", "COMPLETED", "EXECUTION_FAILED", "EXECUTION_UNCERTAIN"] } } }),
     isAdmin ? db.dmaRequest.count({ where: { status: "ARCHIVED" } }) : Promise.resolve(0),
-    isAdmin ? Promise.resolve(0) : db.dmaRequest.count({ where: { ...scope, status: "REJECTED" } }),
+    isAdmin ? Promise.resolve(0) : db.dmaRequest.count({ where: { ...scope, status: { in: ["REJECTED", "ANALYSIS_FAILED"] } } }),
     db.dmaRequest.findMany({
       where: scope,
       orderBy: { updatedAt: "desc" },
@@ -55,13 +45,13 @@ export default async function HomePage() {
   const metrics = isAdmin
     ? [
         { label: "Aguardando aprovação", value: pending, detail: "Solicitações que precisam de decisão", href: "/analise" },
-        { label: "Aprovadas ou em execução", value: completed, detail: "Ações aprovadas pelo administrador", href: "/analise" },
+        { label: "Ações enviadas ao Coral", value: completed, detail: "Em andamento, concluídas ou com falha no processamento", href: "/analise" },
         { label: "Arquivadas / excluídas", value: archived, detail: "Registros preservados para auditoria", href: "/analise" },
       ]
     : [
         { label: "Minhas solicitações", value: total, detail: "Solicitações abertas por você", href: "/minhas-solicitacoes" },
         { label: "Aguardando aprovação", value: pending, detail: "Em análise do administrador", href: "/minhas-solicitacoes" },
-        { label: "Correções disponíveis", value: corrections, detail: "Revise e reenvie a solicitação", href: "/minhas-solicitacoes" },
+        { label: "Correções disponíveis", value: corrections, detail: "Revise solicitações recusadas ou com falha na análise", href: "/minhas-solicitacoes" },
       ];
 
   const shortcuts = isAdmin
@@ -120,7 +110,7 @@ export default async function HomePage() {
                 <th>Contrato</th>
                 <th>Ação</th>
                 {isAdmin && <th>Atendente</th>}
-                <th>Status</th>
+                <th>Situação</th>
                 <th>Atualizado</th>
                 <th></th>
               </tr>
@@ -131,7 +121,7 @@ export default async function HomePage() {
                   <td className="strong">{request.contractName}</td>
                   <td>{actionLabels[request.actionType] || request.actionType}</td>
                   {isAdmin && <td>{request.requester.name || request.requester.email}</td>}
-                  <td><span className="dashboard-status">{statusLabels[request.status] || request.status}</span></td>
+                  <td><span className="dashboard-status">{statusLabels[request.status] || "Situação não identificada"}</span></td>
                   <td>{formatDate(request.updatedAt)}</td>
                   <td><Link href={`/solicitacoes/${request.id}`}>Abrir →</Link></td>
                 </tr>

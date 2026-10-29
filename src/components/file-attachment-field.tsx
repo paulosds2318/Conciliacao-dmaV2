@@ -45,7 +45,8 @@ export function FileAttachmentField({ label, name, accept, file, required = fals
         type="file"
         accept={accept}
         required={required && !file}
-        disabled={disabled || Boolean(file)}
+        // Selected files must remain enabled so the browser includes them in FormData.
+        disabled={disabled}
         onChange={(event) => onFileChange(event.target.files?.[0] || null)}
       />
       {file && (

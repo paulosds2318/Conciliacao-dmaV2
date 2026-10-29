@@ -13,6 +13,7 @@ export function ManualActionForm() {
   const [mode, setMode] = useState<ActionMode>("single");
   const [contractNumber, setContractNumber] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [hasHeader, setHasHeader] = useState(true);
   const [sheets, setSheets] = useState<SheetPreview[]>([]);
   const [sheetName, setSheetName] = useState("");
   const [columnIndex, setColumnIndex] = useState("");
@@ -21,10 +22,10 @@ export function ManualActionForm() {
   const [error, setError] = useState("");
   const selectedSheet = sheets.find((sheet) => sheet.name === sheetName);
 
-  async function preview(selected: File | null) {
+  async function preview(selected: File | null, includeHeader = hasHeader) {
     setFile(selected); setSheets([]); setSheetName(""); setColumnIndex(""); setError("");
     if (!selected) return;
-    const form = new FormData(); form.set("file", selected); setBusy(true);
+    const form = new FormData(); form.set("file", selected); form.set("hasHeader", String(includeHeader)); setBusy(true);
     try {
       const response = await fetch("/api/batches/preview", { method: "POST", body: form });
       const data = await response.json() as { sheets?: SheetPreview[]; error?: string };
@@ -49,7 +50,7 @@ export function ManualActionForm() {
       form.set("contractNumber", contractNumber.trim());
     } else {
       if (!file) { setError("Selecione uma planilha."); setBusy(false); return; }
-      form.set("file", file); form.set("worksheetName", sheetName); form.set("columnIndex", columnIndex);
+      form.set("file", file); form.set("worksheetName", sheetName); form.set("columnIndex", columnIndex); form.set("hasHeader", String(hasHeader));
     }
     try {
       const response = await fetch("/api/batches", { method: "POST", body: form });
@@ -95,8 +96,9 @@ export function ManualActionForm() {
             </label>
           ) : (
             <>
-              <p className="subcell">Aceita .xlsx e .csv, com limite de 1.000 contratos.</p>
+              <p className="subcell">Aceita .xlsx e .csv, com limite de 1.000 contratos. Escolha se a primeira linha contém cabeçalhos.</p>
               <FileAttachmentField label="Planilha (.xlsx ou .csv)" name="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" file={file} required onFileChange={(selected) => void preview(selected)} />
+              <label className="spreadsheet-header-toggle"><input type="checkbox" checked={hasHeader} onChange={(event) => { const next = event.target.checked; setHasHeader(next); if (file) void preview(file, next); }} /> A primeira linha contém nomes das colunas</label>
               {busy && !sheets.length && <p className="subcell">Lendo planilha…</p>}
               {sheets.length > 0 && (
                 <div className="filter-bar">
@@ -114,6 +116,7 @@ export function ManualActionForm() {
               )}
               {selectedSheet && columnIndex !== "" && (
                 <>
+                  {hasHeader && /^[A-Z]{2,}\d{3,}[-/]/i.test(selectedSheet.headers[Number(columnIndex)] || "") && <div className="notice">O cabeçalho selecionado parece ser um número de contrato. Se a primeira linha da planilha for um contrato, desmarque “A primeira linha contém nomes das colunas”.</div>}
                   <p className="subcell">Prévia das primeiras {selectedSheet.rows.length} linhas. Repetidos e células vazias serão ignorados.</p>
                   <div className="table-wrap"><table><thead><tr><th>Linha</th><th>Contrato escolhido</th></tr></thead><tbody>
                     {selectedSheet.rows.map((row) => <tr key={row.rowNumber}><td>{row.rowNumber}</td><td>{row.values[Number(columnIndex)] || <em>Vazio</em>}</td></tr>)}

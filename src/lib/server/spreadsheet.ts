@@ -9,7 +9,7 @@ function cellValue(cell: ExcelJS.Cell) {
   const text = cell.text?.trim();
   return text || (cell.value == null ? "" : String(cell.value).trim());
 }
-export async function readSpreadsheet(file: File): Promise<SpreadsheetSheet[]> {
+export async function readSpreadsheet(file: File, hasHeader = true): Promise<SpreadsheetSheet[]> {
   const extension = file.name.toLowerCase().split(".").at(-1);
   if (!extension || !["xlsx", "csv"].includes(extension)) throw new Error("Use uma planilha .xlsx ou .csv. Arquivos .xls não são suportados.");
   if (!file.size || file.size > MAX_SPREADSHEET_BYTES) throw new Error("A planilha deve ter até 15 MB.");
@@ -24,10 +24,11 @@ export async function readSpreadsheet(file: File): Promise<SpreadsheetSheet[]> {
     const headerRow = worksheet.getRow(1);
     const columns = Math.max(headerRow.cellCount, worksheet.columnCount);
     if (columns > 100) throw new Error("A planilha excede o limite de 100 colunas.");
-    if (worksheet.rowCount > MAX_SPREADSHEET_ROWS + 1) throw new Error(`A planilha excede o limite de ${MAX_SPREADSHEET_ROWS} linhas de contratos.`);
-    const headers = Array.from({ length: columns }, (_, index) => cellValue(headerRow.getCell(index + 1)) || `Coluna ${index + 1}`);
+    if (worksheet.rowCount > MAX_SPREADSHEET_ROWS + (hasHeader ? 1 : 0)) throw new Error(`A planilha excede o limite de ${MAX_SPREADSHEET_ROWS} linhas de contratos.`);
+    const headers = Array.from({ length: columns }, (_, index) => hasHeader ? cellValue(headerRow.getCell(index + 1)) || `Coluna ${index + 1}` : `Coluna ${index + 1}`);
     const rows: SpreadsheetRow[] = [];
-    for (let rowNumber = 2; rowNumber <= Math.min(worksheet.rowCount, MAX_SPREADSHEET_ROWS + 1); rowNumber++) {
+    const firstDataRow = hasHeader ? 2 : 1;
+    for (let rowNumber = firstDataRow; rowNumber <= worksheet.rowCount; rowNumber++) {
       const values = Array.from({ length: columns }, (_, index) => cellValue(worksheet.getRow(rowNumber).getCell(index + 1)));
       if (values.some(Boolean)) rows.push({ rowNumber, values });
     }
