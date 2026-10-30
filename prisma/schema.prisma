@@ -16,6 +16,8 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   role          String?  @default("attendant")
+  /// Siglas das lojas cujos contratos o atendente pode consultar (ex.: SAO10). Admin enxerga todas.
+  stores        String[] @default([])
   banned        Boolean? @default(false)
   banReason     String?
   banExpires    DateTime?

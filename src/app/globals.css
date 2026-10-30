@@ -1376,3 +1376,11 @@ a:hover {
 }
 
 .action-confirmation-dialog > p { margin: 0 0 20px; color: var(--muted); }
+
+.store-picker { display: grid; gap: 10px; margin: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-card); min-width: 0; }
+.store-picker legend { padding: 0 6px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.store-picker small { color: var(--muted); font-size: 12px; }
+.store-picker-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.store-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px 12px; }
+.store-option { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; }
+.store-option input { width: auto; min-height: 0; margin: 0; }

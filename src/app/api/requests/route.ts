@@ -8,6 +8,7 @@ import { analyzeRequest } from "@/lib/server/analyze-request";
 import { removeStoredPdf, storePdf } from "@/lib/server/storage";
 import { createRequestSchema } from "@/lib/validators/request";
 import { requiresVoucher } from "@/lib/services/request-policy";
+import { checkContractAccess } from "@/lib/server/store-access";
 export const maxDuration = 150;
 export async function GET(request: Request) {
   const user = await isAllowed(["attendant", "admin"]);
@@ -25,6 +26,8 @@ export async function POST(request: NextRequest) {
   const form = await request.formData();
   const parsed = createRequestSchema.safeParse({ actionType: form.get("actionType"), contractName: form.get("contractName"), observations: form.get("observations") ?? "" });
   if (!parsed.success || !["CONSIDERAR_DMA", "DESCONSIDERAR_DMA"].includes(parsed.data.actionType)) return apiError("Selecione uma ação e informe o contrato.");
+  const accessError = await checkContractAccess(user, parsed.data.contractName);
+  if (accessError) return apiError(accessError, 403);
   const needsVoucher = requiresVoucher(parsed.data.actionType);
   const voucher = needsVoucher ? form.get("voucher") : null; const contractFile = form.get("contract");
   if (!(contractFile instanceof File) || contractFile.size === 0) return apiError("Anexe o contrato (PDF ou imagem).");
@@ -33,6 +36,8 @@ export async function POST(request: NextRequest) {
   try { coral = await lookupContract(parsed.data.contractName); }
   catch (error) { return apiError(error instanceof Error ? error.message : "Falha na validacao do Coral.", 502); }
   if (!coral) return apiError("Não encontramos esse contrato no Coral. Confira o número informado ou confirme se ele existe.", 422);
+  const coralAccessError = await checkContractAccess(user, coral.number);
+  if (coralAccessError) return apiError(coralAccessError, 403);
   if (!coral.id) return apiError("O Coral não retornou o identificador interno deste contrato. Não é possível abrir uma solicitação para ele agora.", 422);
   const requestId = crypto.randomUUID();
   const stored: Array<{ storageKey: string }> = [];

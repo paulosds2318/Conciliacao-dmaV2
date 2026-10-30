@@ -4,8 +4,9 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
+import { sanitizeStores } from "@/lib/stores";
 type Context = { params: Promise<{ id: string }> };
-type ActionBody = { action?: unknown; role?: unknown; name?: unknown };
+type ActionBody = { action?: unknown; role?: unknown; name?: unknown; stores?: unknown };
 export async function PATCH(request: NextRequest, { params }: Context) {
   const administrator = await isAllowed(["admin"]);
   if (!administrator) return apiError("Apenas administradores podem gerenciar usuários.", 403);
@@ -22,6 +23,12 @@ export async function PATCH(request: NextRequest, { params }: Context) {
       if (target.role === "admin" && !target.banned && body.role !== "admin" && await db.user.count({ where: { role: "admin", banned: false } }) <= 1) return apiError("Não é possível rebaixar o último administrador ativo.", 409);
       const result = await auth.api.setRole({ headers: requestHeaders, body: { userId: id, role: body.role } });
       return NextResponse.json({ user: { id: result.user.id, name: result.user.name, role: result.user.role } });
+    }
+    if (body.action === "stores") {
+      const stores = sanitizeStores(body.stores);
+      if (target.role !== "admin" && !stores.length) return apiError("Selecione ao menos uma loja para o atendente.");
+      const updated = await db.user.update({ where: { id }, data: { stores }, select: { id: true, name: true, stores: true } });
+      return NextResponse.json({ user: updated });
     }
     if (body.action === "name") {
       if (typeof body.name !== "string" || body.name.trim().length < 2 || body.name.trim().length > 100) return apiError("O nome deve ter entre 2 e 100 caracteres.");
