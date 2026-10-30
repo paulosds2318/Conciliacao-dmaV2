@@ -22,7 +22,14 @@ COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder --chown=node:node /app/prisma ./prisma
-RUN mkdir -p /app/private-uploads && chown -R node:node /app/private-uploads
+# O seed (criação do primeiro admin) usa o hash de senha do better-auth, que fica embutido no bundle da
+# aplicação e não existe solto no standalone. Mantenha a versão igual à do package-lock.
+RUN cd prisma && npm install --no-save --no-package-lock --omit=dev better-auth@1.7.12 && npm cache clean --force
+COPY --chown=node:node docker-entrypoint.sh ./docker-entrypoint.sh
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh \
+  && mkdir -p /app/private-uploads && chown -R node:node /app/private-uploads
 USER node
 EXPOSE 3000
-CMD ["sh", "-c", "prisma db push --skip-generate && exec node server.js"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["./docker-entrypoint.sh"]

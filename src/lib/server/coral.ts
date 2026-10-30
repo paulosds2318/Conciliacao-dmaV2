@@ -1,6 +1,23 @@
 import type { DmaAction } from "@/lib/integrations/coral";
+import { parseStoreCode, type StoreCode } from "@/lib/stores";
 
-export type ContractMatch = { number: string; id: string | null; displayName: string; raw: unknown };
+export type ContractMatch = { number: string; id: string | null; displayName: string; store: StoreCode | null; raw: unknown };
+const STORE_KEY = /loja|store|branch|filial|agencia|agency|pickup|retirada/i;
+/** Procura a loja do contrato nos campos de loja/filial/retirada da resposta do Coral (até 2 níveis). */
+function findContractStore(row: Record<string, unknown>, depth = 0): StoreCode | null {
+  for (const [key, value] of Object.entries(row)) {
+    if (STORE_KEY.test(key)) {
+      const direct = parseStoreCode(value);
+      if (direct) return direct;
+    }
+    if (depth < 2 && value && typeof value === "object" && !Array.isArray(value)) {
+      const nested = STORE_KEY.test(key) ? Object.values(value as Record<string, unknown>).map(parseStoreCode).find(Boolean) : null;
+      const found = nested ?? findContractStore(value as Record<string, unknown>, depth + 1);
+      if (found) return found;
+    }
+  }
+  return null;
+}
 function candidates(data: unknown): Record<string, unknown>[] {
   if (Array.isArray(data)) return data.filter((x): x is Record<string, unknown> => !!x && typeof x === "object");
   if (!data || typeof data !== "object") return [];
@@ -20,7 +37,7 @@ function coralAuthorization() {
   return `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}`;
 }
 export async function lookupContract(number: string): Promise<ContractMatch | null> {
-  if (process.env.MODO_TESTE_API === "true" && !process.env.CORAL_AUTH_TOKEN?.trim()) return { number, id: number, displayName: `Contrato ${number} (simulacao)`, raw: { simulated: true } };
+  if (process.env.MODO_TESTE_API === "true" && !process.env.CORAL_AUTH_TOKEN?.trim()) return { number, id: number, displayName: `Contrato ${number} (simulacao)`, store: null, raw: { simulated: true } };
   const template = process.env.CORAL_CONTRACT_LOOKUP_URL || "https://servicescoral.aluguefoco.com.br/api/rentagreement/{CONTRATO}";
   const url = template.replace("{CONTRATO}", encodeURIComponent(number));
   const response = await fetch(url, { headers: { Accept: "application/json", Authorization: coralAuthorization() }, signal: AbortSignal.timeout(15000), cache: "no-store" });
@@ -31,7 +48,7 @@ export async function lookupContract(number: string): Promise<ContractMatch | nu
   const rows = candidates(body);
   const row = rows.find((x) => field(x, ["contrato", "contractNumber", "number", "numero", "rentAgreementNumber", "id"]).toLowerCase() === number.toLowerCase()) ?? rows[0];
   if (!row || (rows.length === 1 && row.success === false)) return null;
-  return { number: field(row, ["contrato", "contractNumber", "number", "numero", "rentAgreementNumber"]) || number, id: field(row, ["id", "contractId", "rentAgreementId"]) || null, displayName: field(row, ["nome", "name", "cliente", "customerName"]) || `Contrato ${number}`, raw: row };
+  return { number: field(row, ["contrato", "contractNumber", "number", "numero", "rentAgreementNumber"]) || number, id: field(row, ["id", "contractId", "rentAgreementId"]) || null, displayName: field(row, ["nome", "name", "cliente", "customerName"]) || `Contrato ${number}`, store: findContractStore(row), raw: row };
 }
 export async function applyDmaAction(contractNumber: string, action: DmaAction) {
   if (process.env.MODO_TESTE_API === "true") return { status: "SIMULATED", response: { simulated: true } };

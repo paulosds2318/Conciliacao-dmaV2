@@ -7,7 +7,6 @@ import { REQUEST_STATUS_LABELS } from "@/lib/services/request-status";
 type AuditEvent = { id: string; event: string; details: Record<string, unknown> | null; createdAt: string; actor: { name: string; email?: string } | null };
 type Row = { id: string; contractName: string; actionType: string; status: string; requester: { name: string; email: string }; createdAt: string; updatedAt: string; decisions: Array<{ decision: string; justification: string | null; createdAt: string; reviewer: { name: string } }>; auditEvents: AuditEvent[] };
 const statusLabels: Record<string, string> = REQUEST_STATUS_LABELS;
-const eventLabel: Record<string, string> = { REQUEST_ARCHIVED: "Solicitação excluída", REQUEST_REOPENED: "Solicitação reaberta" };
 function date(value: string) { return new Date(value).toLocaleString("pt-BR"); }
 function withDisplayNames(row: Row): Row {
   return {
@@ -15,6 +14,11 @@ function withDisplayNames(row: Row): Row {
     requester: { ...row.requester, name: personName(row.requester.name, row.requester.email) },
     auditEvents: row.auditEvents.map((event) => event.actor ? { ...event, actor: { ...event.actor, name: personName(event.actor.name, event.actor.email) } } : event),
   };
+}
+async function fetchAuditRows() {
+  const response = await fetch("/api/requests?includeArchived=true", { cache: "no-store" }); const data = await response.json() as { requests?: Row[]; error?: string };
+  if (!response.ok) throw new Error(data.error || "Não foi possível atualizar as solicitações.");
+  return (data.requests || []).map(withDisplayNames);
 }
 export function RequestAuditList({ mode, embedded = false }: { mode: "all" | "deleted"; embedded?: boolean }) {
   const [rows, setRows] = useState<Row[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [notice, setNotice] = useState("");
@@ -25,18 +29,13 @@ export function RequestAuditList({ mode, embedded = false }: { mode: "all" | "de
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
-  const refresh = useCallback(async (manual = false) => {
-    setLoading(true); setError("");
-    try {
-      const response = await fetch("/api/requests?includeArchived=true", { cache: "no-store" }); const data = await response.json() as { requests?: Row[]; error?: string };
-      if (!response.ok) throw new Error(data.error || "Não foi possível atualizar as solicitações.");
-      setRows((data.requests || []).map(withDisplayNames)); if (manual) setNotice("Acompanhamento atualizado.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha ao consultar o acompanhamento."); }
-    finally { setLoading(false); }
-  }, []);
-  useEffect(() => { void refresh(); const onRefresh = () => void refresh(true); window.addEventListener("app:refresh", onRefresh); return () => window.removeEventListener("app:refresh", onRefresh); }, [refresh]);
+  const load = useCallback((manual: boolean) => fetchAuditRows()
+    .then((data) => { setRows(data); setError(""); if (manual) setNotice("Acompanhamento atualizado."); })
+    .catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao consultar o acompanhamento."))
+    .finally(() => setLoading(false)), []);
+  // Na primeira carga o estado já começa em "carregando"; a atualização manual reinicia o indicador.
+  useEffect(() => { void load(false); const onRefresh = () => { setLoading(true); void load(true); }; window.addEventListener("app:refresh", onRefresh); return () => window.removeEventListener("app:refresh", onRefresh); }, [load]);
   const requesters = useMemo(() => [...new Set(rows.map((row) => personName(row.requester.name, row.requester.email)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR")), [rows]);
-  const availableStatuses = useMemo(() => [...new Set(rows.filter((row) => mode !== "deleted" || row.status === "ARCHIVED").map((row) => row.status))].filter((value) => value in statusLabels).sort((a, b) => statusLabels[a].localeCompare(statusLabels[b], "pt-BR")), [rows, mode]);
   const filtered = useMemo(() => rows.filter((row) => {
     if (mode === "deleted" && row.status !== "ARCHIVED") return false;
     const query = search.trim().toLocaleLowerCase("pt-BR");

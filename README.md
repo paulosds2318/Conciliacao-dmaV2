@@ -130,13 +130,22 @@ Os PDFs ficam no diretório `private-uploads` montado como volume da aplicação
 | `CORAL_DMA_ELIGIBILITY_URL` | Endpoint `PUT` usado após aprovação para considerar/desconsiderar DMA; se omitido, usa o domínio de `CORAL_CONTRACT_LOOKUP_URL` |
 | `CORAL_API_URL` | Alias para `CORAL_DMA_ELIGIBILITY_URL`; se não houver a variável nova, também aponta para o endpoint de ações DMA |
 | `MODO_TESTE_API` | `true` simula a execução DMA. A consulta do contrato também é simulada quando não há token Coral configurado |
-| `DOCUMENT_STORAGE_PATH` | Diretório privado para PDFs |
+| `DOCUMENT_STORAGE_BUCKET` | Bucket S3 privado para voucher e contrato (produção). Se vazio, usa o disco |
+| `DOCUMENT_STORAGE_PREFIX`, `DOCUMENT_STORAGE_REGION`, `DOCUMENT_STORAGE_KMS_KEY_ID` | Prefixo das chaves no bucket, região e chave KMS opcional (sem ela, criptografia AES256 do S3) |
+| `REQUIRE_DOCUMENT_BUCKET` | `true` impede a aplicação de subir sem bucket configurado |
+| `DOCUMENT_STORAGE_PATH` | Diretório privado para os documentos quando não há bucket (desenvolvimento) |
 | `MAX_PDF_SIZE_MB` | Limite de upload por PDF no servidor |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | Credenciais para criar/atualizar o administrador inicial |
-| `SEED_ATTENDANT_EMAIL`, `SEED_ATTENDANT_PASSWORD` | Credenciais opcionais para criar/atualizar um atendente |
+| `SEED_ATTENDANT_EMAIL`, `SEED_ATTENDANT_PASSWORD`, `SEED_ATTENDANT_STORES` | Credenciais opcionais para criar/atualizar um atendente e suas lojas (ex.: `SAO10,SAO11`) |
 | `FRAME_ANCESTORS` | Origens permitidas na diretiva de segurança `frame-ancestors` |
 
-Nunca publique o arquivo `.env` nem inclua credenciais reais no repositório.
+O modelo completo está em [`.env.example`](.env.example). Nunca publique o arquivo `.env` nem inclua credenciais reais no repositório.
+
+Em produção, a aplicação se recusa a iniciar sem `DATABASE_URL`, `BETTER_AUTH_SECRET` (mínimo de 32 caracteres) e `BETTER_AUTH_URL`.
+
+## Deploy na AWS
+
+O passo a passo, com a infraestrutura necessária, está em [docs/deploy-aws.md](docs/deploy-aws.md).
 
 ## Integrações e limitações
 
@@ -155,7 +164,8 @@ npm run dev
 npm run build
 npm run lint
 npm run db:generate
-npm run db:push
+npm run db:migrate          # cria uma nova migração após alterar prisma/schema.prisma
+npm run db:migrate:deploy   # aplica as migrações pendentes (o container faz isso ao iniciar)
 npm run db:seed
 docker compose up -d --build
 docker compose down

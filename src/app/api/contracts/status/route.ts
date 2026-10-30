@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   try {
     const contract = await lookupContract(number);
     if (!contract) return apiError("Não encontramos esse contrato no Coral. Confira o número informado ou confirme se ele existe.", 404);
-    const coralAccessError = await checkContractAccess(user, contract.number);
+    const coralAccessError = await checkContractAccess(user, contract.number, contract.store);
     if (coralAccessError) return apiError(coralAccessError, 403);
     const dma = extractDmaCurrentStatus(contract.raw);
     return NextResponse.json({ contract: { number: contract.number, displayName: contract.displayName, currentDmaStatus: dma.status, statusSourceField: dma.sourceField } });

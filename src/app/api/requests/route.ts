@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   try { coral = await lookupContract(parsed.data.contractName); }
   catch (error) { return apiError(error instanceof Error ? error.message : "Falha na validacao do Coral.", 502); }
   if (!coral) return apiError("Não encontramos esse contrato no Coral. Confira o número informado ou confirme se ele existe.", 422);
-  const coralAccessError = await checkContractAccess(user, coral.number);
+  const coralAccessError = await checkContractAccess(user, coral.number, coral.store);
   if (coralAccessError) return apiError(coralAccessError, 403);
   if (!coral.id) return apiError("O Coral não retornou o identificador interno deste contrato. Não é possível abrir uma solicitação para ele agora.", 422);
   const requestId = crypto.randomUUID();

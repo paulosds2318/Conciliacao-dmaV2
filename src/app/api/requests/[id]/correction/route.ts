@@ -36,7 +36,7 @@ export async function POST(request: NextRequest, { params }: Context) {
     catch (error) { return apiError(error instanceof Error ? error.message : "Falha na validacao do Coral.", 502); }
     if (!coral) return apiError("Não encontramos o novo número de contrato no Coral. Confira o número informado.", 422);
     if (!coral.id) return apiError("O Coral não retornou o identificador interno do novo contrato. Não é possível reabrir com ele agora.", 422);
-    const coralAccessError = await checkContractAccess(user, coral.number);
+    const coralAccessError = await checkContractAccess(user, coral.number, coral.store);
     if (coralAccessError) return apiError(coralAccessError, 403);
     contractChange = { contractName: coral.number, coralContractId: coral.id };
   }

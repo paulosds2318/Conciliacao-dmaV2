@@ -57,16 +57,6 @@ export function RequestList({ adminQueue = false }: { adminQueue?: boolean }) {
   const baseRows = adminQueue ? items.filter((item) => adminView === "archived" ? item.status === "ARCHIVED" : adminView === "approved" ? approvedStatuses.includes(item.status) : adminView === "all" ? true : item.status === "PENDING_REVIEW") : items.filter((item) => attendantView === "archived" ? item.status === "ARCHIVED" : item.status !== "ARCHIVED");
   const filteredRows = baseRows.filter((item) => { const matchText = !query.trim() || `${item.contractName} ${item.requester?.name || ""} ${item.id}`.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")); return matchText && (statusFilter === "ALL" || item.status === statusFilter); });
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize)); const currentPage = Math.min(page, pageCount); const shown = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  async function refreshRequests() {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/requests${includeArchivedRequests ? "?includeArchived=true" : ""}`, { cache: "no-store" });
-      const data = await response.json() as { requests?: RequestRow[]; error?: string };
-      if (!response.ok || !data.requests) throw new Error(data.error || "Falha ao atualizar solicitações.");
-      setItems(data.requests.map(withDisplayName)); setActionMessage("Solicitações atualizadas."); setError("");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Falha ao atualizar solicitações."); }
-    finally { setLoading(false); }
-  }
   async function archiveRequest(item: RequestRow, reason: string): Promise<boolean> {
     setArchivingId(item.id); setActionMessage("");
     try {

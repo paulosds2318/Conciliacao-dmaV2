@@ -7,7 +7,7 @@ services:
     branch: main
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    healthCheckPath: /login
+    healthCheckPath: /api/health
     initialDeployHook: node --experimental-strip-types prisma/seed.ts
     envVars:
       - key: DATABASE_URL

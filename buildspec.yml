@@ -1,0 +1,31 @@
+# AWS CodeBuild: constrói a imagem Docker, envia ao ECR e gera imagedefinitions.json para o deploy no ECS.
+# Variáveis do projeto CodeBuild: ECR_REPOSITORY (nome do repositório ECR) e CONTAINER_NAME (nome do container
+# na task definition do ECS). AWS_DEFAULT_REGION é preenchida pelo próprio CodeBuild.
+# O projeto precisa de "privileged mode" habilitado para rodar Docker.
+version: 0.2
+
+env:
+  variables:
+    ECR_REPOSITORY: conciliacao-dma
+    CONTAINER_NAME: conciliacao-dma
+
+phases:
+  pre_build:
+    commands:
+      - ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+      - REGISTRY="$ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com"
+      - IMAGE_URI="$REGISTRY/$ECR_REPOSITORY"
+      - IMAGE_TAG=$(echo "$CODEBUILD_RESOLVED_SOURCE_VERSION" | cut -c1-8)
+      - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "$REGISTRY"
+  build:
+    commands:
+      - docker build --pull -t "$IMAGE_URI:$IMAGE_TAG" -t "$IMAGE_URI:latest" .
+  post_build:
+    commands:
+      - docker push "$IMAGE_URI:$IMAGE_TAG"
+      - docker push "$IMAGE_URI:latest"
+      - printf '[{"name":"%s","imageUri":"%s"}]' "$CONTAINER_NAME" "$IMAGE_URI:$IMAGE_TAG" > imagedefinitions.json
+
+artifacts:
+  files:
+    - imagedefinitions.json

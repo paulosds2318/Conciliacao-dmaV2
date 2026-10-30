@@ -9,7 +9,7 @@ export async function analyzeRequest(requestId: string, version: number, voucher
     const { contractName } = await db.dmaRequest.findUniqueOrThrow({ where: { id: requestId }, select: { contractName: true } });
     const [voucher, contract] = await Promise.all([voucherKey ? getStoredPdf(voucherKey) : null, getStoredPdf(contractKey)]);
     const comparison = await comparePdfs(voucher, contract, contractName);
-    const rejectionReasons = [...getContractNumberRejectionReasons(comparison.contractNumber), ...(voucher ? getIdentityRejectionReasons(comparison.identity) : [])];
+    const rejectionReasons = [...getContractNumberRejectionReasons(comparison.contractNumber), ...(voucher ? getIdentityRejectionReasons(comparison.identity, comparison.reservation) : [])];
     const status = rejectionReasons.length ? "REJECTED" : "PENDING_REVIEW";
     const analysisStatus = rejectionReasons.length ? "AUTO_REJECTED" : "COMPLETED";
     const savedComparison = rejectionReasons.length

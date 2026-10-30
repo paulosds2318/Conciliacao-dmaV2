@@ -58,6 +58,11 @@ function normalizeCpf(value: string) { return value.replace(/\D/g, ""); }
 export function normalizeContractNumber(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^0+(?=\d)/, "");
 }
+/** Normaliza o código de reserva Foco (R + 7 dígitos + "-" + ano); devolve null se não houver um. */
+export function normalizeReservationCode(value: string | null) {
+  const match = value?.toUpperCase().replace(/\s/g, "").match(/R(\d{7})-?(\d{2})/);
+  return match ? `R${match[1]}-${match[2]}` : null;
+}
 export function contractNumbersMatch(expected: string, found: string) {
   const normalizedExpected = normalizeContractNumber(expected);
   if (!normalizedExpected) return false;
@@ -102,9 +107,11 @@ export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Arr
       : "Analise o documento anexado (PDF ou imagem): somente o contrato de locacao foi enviado, nao ha voucher. Retorne identity.voucher com name e cpf null.",
     "No contrato de locacao, localize tambem o numero do contrato (numero do contrato, RA, rent agreement ou equivalente) e copie exatamente como aparece em contractNumber; se nao encontrar, retorne null.",
     "Localize especificamente o nome completo do cliente/locatario principal e o CPF dessa mesma pessoa em cada documento.",
+    "Vouchers podem estar em outros idiomas (ingles, espanhol, holandes, alemao, portugues de Portugal) e vir de parceiros como Discover Cars, Rentalcars, Booking.com, Decolar, Rentcars, Auto Europe ou EconomyBookings. Nesses casos o titular aparece como Main driver, Driver name, Conductor principal, Hoofdbestuurder, Hauptfahrer ou similar, e o documento costuma ser passaporte em vez de CPF: use esse nome e, se nao houver CPF, retorne cpf null (nunca coloque numero de passaporte no campo cpf).",
+    "Localize tambem o codigo da reserva Foco no formato R seguido de 7 digitos, hifen e 2 digitos (ex.: R1531330-25). No voucher ele aparece como Voucher, Confirmation number, Supplier reference, res. nr. ou similar; no contrato aparece como Reserva. Copie em reservation.voucher e reservation.contract, ou null se nao houver.",
     "No contrato, nao confunda o cliente/locatario principal com condutor adicional, fiador, atendente ou empresa. No voucher, identifique o titular/cliente associado a reserva.",
     "Copie o CPF exatamente como aparece, mantendo pontuacao quando houver. Nao invente, complete nem deduza nomes ou CPFs. Se estiver ausente, cortado ou ilegivel, retorne null.",
-    "Compare os CPFs e os nomes, sem ignorar divergencias. Retorne somente JSON valido neste formato: {matches:boolean|null,confidence:number|null,contractNumber:string|null,identity:{voucher:{name:string|null,cpf:string|null},contract:{name:string|null,cpf:string|null}},fields:[{name:string,voucherValue:string|null,contractValue:string|null,match:boolean|null,evidence:string}],summary:string}.",
+    "Compare os CPFs e os nomes, sem ignorar divergencias. Retorne somente JSON valido neste formato: {matches:boolean|null,confidence:number|null,contractNumber:string|null,reservation:{voucher:string|null,contract:string|null},identity:{voucher:{name:string|null,cpf:string|null},contract:{name:string|null,cpf:string|null}},fields:[{name:string,voucherValue:string|null,contractValue:string|null,match:boolean|null,evidence:string}],summary:string}.",
     "Inclua em fields as linhas CPF do cliente e Nome completo do cliente. Mantenha cada evidence com no maximo 150 caracteres e summary com no maximo 400 caracteres; nao transcreva trechos longos dos documentos. matches deve ser null se os documentos nao permitirem conclusao. A IA nao aprova a acao; a decisao final continua sendo do administrador.",
   ].join(" ");
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -137,13 +144,18 @@ export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Arr
   const identity = makeIdentity(json.identity);
   const suppliedFields = Array.isArray(json.fields) ? json.fields.map(asObject) : [];
   const otherFields = suppliedFields.flatMap((field) => {
-    if (typeof field.name !== "string" || /cpf|nome.*cliente|numero.*contrato|número.*contrato/i.test(field.name)) return [];
+    if (typeof field.name !== "string" || /cpf|nome.*cliente|numero.*contrato|número.*contrato|reserva/i.test(field.name)) return [];
     return [{ name: field.name, voucherValue: readText(field.voucherValue) || undefined, contractValue: readText(field.contractValue) || undefined, match: typeof field.match === "boolean" ? field.match : null, evidence: readText(field.evidence) || undefined }];
   });
   const foundContractNumber = readText(json.contractNumber);
   const contractNumber = { expected: expectedContractNumber, found: foundContractNumber, match: foundContractNumber ? contractNumbersMatch(expectedContractNumber, foundContractNumber) : null };
+  const rawReservation = asObject(json.reservation);
+  const voucherReservation = voucher ? normalizeReservationCode(readText(rawReservation.voucher)) : null;
+  const contractReservation = normalizeReservationCode(readText(rawReservation.contract));
+  const reservation = { voucher: voucherReservation, contract: contractReservation, match: voucherReservation && contractReservation ? voucherReservation === contractReservation : null };
   const fields: DocumentComparison["fields"] = [
     { name: `Número do contrato (Coral: ${expectedContractNumber})`, contractValue: foundContractNumber || undefined, match: contractNumber.match },
+    ...(voucher ? [{ name: "Código da reserva", voucherValue: voucherReservation || undefined, contractValue: contractReservation || undefined, match: reservation.match }] : []),
     { name: "CPF do cliente", voucherValue: identity.voucher.cpf || undefined, contractValue: identity.contract.cpf || undefined, match: identity.cpfMatch },
     { name: "Nome completo do cliente", voucherValue: identity.voucher.name || undefined, contractValue: identity.contract.name || undefined, match: identity.nameMatch },
     ...otherFields,
@@ -151,6 +163,7 @@ export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Arr
   return {
     matches: contractNumber.match === false ? false : typeof json.matches === "boolean" ? json.matches : null,
     contractNumber,
+    reservation,
     confidence: typeof json.confidence === "number" ? Math.max(0, Math.min(1, json.confidence)) : null,
     identity,
     fields,
