@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AppNav } from "@/components/app-nav";
 import { ConfirmationProvider } from "@/components/confirmation-provider";
-import { CoralTokenNotice } from "@/components/coral-token-notice";
-import { coralTokenExpiresAt } from "@/lib/server/coral";
 import "./globals.css";
 
 export const viewport: Viewport = { themeColor: "#F20000", width: "device-width", initialScale: 1 };
@@ -24,7 +22,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <ConfirmationProvider>
           <AppNav coralState={coralState} />
-          {coralState !== "test" && <CoralTokenNotice expiresAt={coralTokenExpiresAt()} />}
           {children}
         </ConfirmationProvider>
       </body>

@@ -34,18 +34,6 @@ function field(row: Record<string, unknown>, keys: string[]) {
   for (const k of keys) if (row[k] !== undefined && row[k] !== null) return String(row[k]);
   return "";
 }
-/** Validade (ms) da chave do Coral, lida do próprio token (JWT do Cognito); null se não houver chave ou ela não trouxer validade. */
-export function coralTokenExpiresAt(): number | null {
-  const token = process.env.CORAL_AUTH_TOKEN?.trim().replace(/^Bearer\s+/i, "");
-  const payload = token?.split(".")[1];
-  if (!payload) return null;
-  try {
-    const { exp } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { exp?: unknown };
-    return typeof exp === "number" ? exp * 1000 : null;
-  } catch {
-    return null;
-  }
-}
 function coralAuthorization() {
   const token = process.env.CORAL_AUTH_TOKEN?.trim();
   if (token) return /^Bearer\s/i.test(token) ? token : `Bearer ${token}`;

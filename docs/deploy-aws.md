@@ -61,7 +61,7 @@ Segredos (Secrets Manager):
 | `DATABASE_URL` | `postgresql://USUARIO:SENHA@ENDPOINT-RDS:5432/conciliacao_dma?schema=public` |
 | `BETTER_AUTH_SECRET` | Aleatório, ≥ 32 caracteres (`openssl rand -base64 48`) |
 | `OPENROUTER_API_KEY` | Chave de produção do OpenRouter |
-| `CORAL_AUTH_TOKEN` | Token do usuário de serviço do Coral (ver pendências) |
+| `CORAL_AUTH_TOKEN` | Chave fixa do usuário de serviço do Coral, com a permissão `BULK_UPDATE_DMA_ELIGIBILITY` |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | Primeiro administrador (usados só no passo 5) |
 
 Configuração (texto simples):
@@ -118,7 +118,6 @@ No ECS, atualize o serviço para a revisão anterior da task definition (ou reex
 
 ## Pendências fora do código
 
-- **Token do Coral expira em 1 hora.** É preciso um usuário de serviço com a permissão `BULK_UPDATE_DMA_ELIGIBILITY` e uma forma de renovar o token automaticamente. Sem isso, as aprovações param de executar no Coral uma hora após configurar o token.
 - **Endpoint de DMA em produção:** `PUT /api/rentagreement/dma/eligibility` está validado em homologação e precisa ser publicado em `servicescoral.aluguefoco.com.br`.
 - **Liberação de IP:** se o Coral de produção restringir por IP, liberar o IP elástico do NAT Gateway.
 - **LGPD:** os documentos são enviados ao OpenRouter para leitura. Confirmar a aprovação da área responsável.
