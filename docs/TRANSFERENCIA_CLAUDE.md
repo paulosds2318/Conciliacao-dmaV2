@@ -13,7 +13,7 @@ O fluxo de aprovação é humano: a IA compara os documentos e fornece uma anál
 ## 2. Tecnologias e organização
 
 - Next.js 16.4 com App Router, React 19 e TypeScript.
-- PostgreSQL e Prisma 6.19.1.
+- PostgreSQL e Prisma 6.19.3.
 - Better Auth para autenticação, sessões e perfis.
 - OpenRouter para leitura/comparação dos PDFs.
 - Integração Coral para consultar contratos e aplicar ações DMA.

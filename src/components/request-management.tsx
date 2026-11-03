@@ -7,31 +7,113 @@ type Props = { requestId: string; status: string; actionType: string; observatio
 const editableStatuses = ATTENDANT_MANAGEABLE_STATUSES;
 const cancellableStatuses = ATTENDANT_MANAGEABLE_STATUSES;
 export function RequestManagement({ requestId, status, actionType, observations, canManage }: Props) {
-  const router = useRouter(); const confirmAction = useConfirmation(); const askReason = useReasonPrompt(); const [action, setAction] = useState(actionType); const [note, setNote] = useState(observations || "");
-  const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [success, setSuccess] = useState("");
+  const router = useRouter();
+  const confirmAction = useConfirmation();
+  const askReason = useReasonPrompt();
+  const [action, setAction] = useState(actionType);
+  const [note, setNote] = useState(observations || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   if (!canManage || (!editableStatuses.includes(status) && !cancellableStatuses.includes(status))) return null;
   async function edit() {
-    if (!await confirmAction({ title: "Salvar alterações?", description: "As observações e a ação solicitada serão atualizadas.", confirmLabel: "Salvar alterações" })) return;
-    setBusy(true); setError(""); setSuccess("");
+    if (
+      !(await confirmAction({
+        title: "Salvar alterações?",
+        description: "As observações e a ação solicitada serão atualizadas.",
+        confirmLabel: "Salvar alterações",
+      }))
+    )
+      return;
+    setBusy(true);
+    setError("");
+    setSuccess("");
     try {
-      const response = await fetch(`/api/requests/${requestId}/edit`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actionType: action, observations: note }) });
-      const data = await response.json() as { error?: string };
+      const response = await fetch(`/api/requests/${requestId}/edit`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionType: action, observations: note }),
+      });
+      const data = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(data.error || "Não foi possível salvar as alterações.");
-      setSuccess("Alterações salvas."); router.refresh();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Falha ao editar a solicitação."); }
-    finally { setBusy(false); }
+      setSuccess("Alterações salvas.");
+      router.refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Falha ao editar a solicitação.");
+    } finally {
+      setBusy(false);
+    }
   }
   async function cancel() {
-    const reason = await askReason({ title: "Cancelar solicitação?", description: "A solicitação deixa de seguir para o Coral e não poderá ser reaberta. Ela continua na sua lista e no histórico.", reasonLabel: "Motivo do cancelamento", reasonPlaceholder: "Ex.: solicitação duplicada, cliente desistiu.", confirmLabel: "Confirmar cancelamento", danger: true });
+    const reason = await askReason({
+      title: "Cancelar solicitação?",
+      description: "A solicitação deixa de seguir para o Coral e não poderá ser reaberta. Ela continua na sua lista e no histórico.",
+      reasonLabel: "Motivo do cancelamento",
+      reasonPlaceholder: "Ex.: solicitação duplicada, cliente desistiu.",
+      confirmLabel: "Confirmar cancelamento",
+      danger: true,
+    });
     if (!reason) return;
-    setBusy(true); setError(""); setSuccess("");
+    setBusy(true);
+    setError("");
+    setSuccess("");
     try {
-      const response = await fetch(`/api/requests/${requestId}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason }) });
-      const data = await response.json() as { error?: string };
+      const response = await fetch(`/api/requests/${requestId}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const data = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(data.error || "Não foi possível cancelar a solicitação.");
-      router.push("/minhas-solicitacoes"); router.refresh();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Falha ao cancelar a solicitação."); }
-    finally { setBusy(false); }
+      router.push("/minhas-solicitacoes");
+      router.refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Falha ao cancelar a solicitação.");
+    } finally {
+      setBusy(false);
+    }
   }
-  return <section className="panel"><h2>Gerenciar solicitação</h2>{editableStatuses.includes(status) ? <><label className="filter-field">Ação<select value={action} onChange={(event) => setAction(event.target.value)}><option value="CONSIDERAR_DMA">Considerar DMA</option><option value="DESCONSIDERAR_DMA">Desconsiderar DMA</option></select></label><label className="filter-field">Observações<textarea value={note} onChange={(event) => setNote(event.target.value)} rows={4} maxLength={2000} /></label><p className="subcell">O contrato e os documentos validados não podem ser alterados aqui. Para trocar os documentos, use “Corrigir e reabrir” abaixo.</p><div className="form-actions"><button className="button primary" disabled={busy || (action === actionType && note === (observations || ""))} onClick={() => void edit()}>{busy ? "Salvando…" : "Salvar alterações"}</button></div></> : <p className="subcell">Esta solicitação não pode mais ser editada no status atual.</p>}{cancellableStatuses.includes(status) && <div className="form-actions"><button className="button danger" disabled={busy} onClick={() => void cancel()}>Cancelar solicitação</button></div>}{error && <div className="notice error-notice">{error}</div>}{success && <div className="notice">{success}</div>}</section>;
+  return (
+    <section className="panel">
+      <h2>Gerenciar solicitação</h2>
+      {editableStatuses.includes(status) ? (
+        <>
+          <label className="filter-field">
+            Ação
+            <select value={action} onChange={(event) => setAction(event.target.value)}>
+              <option value="CONSIDERAR_DMA">Considerar DMA</option>
+              <option value="DESCONSIDERAR_DMA">Desconsiderar DMA</option>
+            </select>
+          </label>
+          <label className="filter-field">
+            Observações
+            <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={4} maxLength={2000} />
+          </label>
+          <p className="subcell">
+            O contrato e os documentos validados não podem ser alterados aqui. Para trocar os documentos, use “Corrigir e reabrir” abaixo.
+          </p>
+          <div className="form-actions">
+            <button
+              className="button primary"
+              disabled={busy || (action === actionType && note === (observations || ""))}
+              onClick={() => void edit()}
+            >
+              {busy ? "Salvando…" : "Salvar alterações"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="subcell">Esta solicitação não pode mais ser editada no status atual.</p>
+      )}
+      {cancellableStatuses.includes(status) && (
+        <div className="form-actions">
+          <button className="button danger" disabled={busy} onClick={() => void cancel()}>
+            Cancelar solicitação
+          </button>
+        </div>
+      )}
+      {error && <div className="notice error-notice">{error}</div>}
+      {success && <div className="notice">{success}</div>}
+    </section>
+  );
 }

@@ -25,15 +25,23 @@ export function BatchList() {
     const refresh = () => {
       void fetch("/api/batches", { cache: "no-store" })
         .then(async (response) => {
-          const data = await response.json() as { jobs?: Job[]; error?: string };
+          const data = (await response.json()) as { jobs?: Job[]; error?: string };
           if (!response.ok) throw new Error(data.error || "Falha ao carregar ações manuais.");
-          if (active) { setJobs(data.jobs || []); setError(""); }
+          if (active) {
+            setJobs(data.jobs || []);
+            setError("");
+          }
         })
-        .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : "Erro ao carregar ações manuais."); });
+        .catch((reason: unknown) => {
+          if (active) setError(reason instanceof Error ? reason.message : "Erro ao carregar ações manuais.");
+        });
     };
     refresh();
     window.addEventListener("app:refresh", refresh);
-    return () => { active = false; window.removeEventListener("app:refresh", refresh); };
+    return () => {
+      active = false;
+      window.removeEventListener("app:refresh", refresh);
+    };
   }, []);
 
   return (
@@ -44,12 +52,20 @@ export function BatchList() {
           <p>O resultado fica salvo por contrato para retomar o processamento.</p>
         </div>
       </div>
-      {error && <div className="notice error-notice" role="alert">{error}</div>}
+      {error && (
+        <div className="notice error-notice" role="alert">
+          {error}
+        </div>
+      )}
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Planilha</th><th>Ação</th><th>Status</th><th>Resultados</th><th>Data</th>
+              <th>Planilha</th>
+              <th>Ação</th>
+              <th>Status</th>
+              <th>Resultados</th>
+              <th>Data</th>
               <th></th>
             </tr>
           </thead>
@@ -59,14 +75,22 @@ export function BatchList() {
                 <td className="strong">{job.originalName}</td>
                 <td>{job.actionType === "CONSIDERAR_DMA" ? "Considerar DMA" : "Desconsiderar DMA"}</td>
                 <td>{batchJobStatusLabels[job.status] || "Status desconhecido"}</td>
-                <td>{job.succeededCount}/{job.totalRows} concluídos · {job.failedCount} falhas · {job.uncertainCount} incertos</td>
+                <td>
+                  {job.succeededCount}/{job.totalRows} concluídos · {job.failedCount} falhas · {job.uncertainCount} incertos
+                </td>
                 <td>{new Date(job.createdAt).toLocaleString("pt-BR")}</td>
                 <td className="table-actions">
                   <Link href={`/acoes-manuais/${job.id}`}>Abrir</Link>
                 </td>
               </tr>
             ))}
-            {!jobs.length && <tr><td className="empty" colSpan={6}>Nenhuma ação por planilha.</td></tr>}
+            {!jobs.length && (
+              <tr>
+                <td className="empty" colSpan={6}>
+                  Nenhuma ação por planilha.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

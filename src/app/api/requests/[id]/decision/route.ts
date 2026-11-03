@@ -14,21 +14,52 @@ export async function POST(request: NextRequest, { params }: Context) {
   const item = await db.dmaRequest.findUnique({ where: { id } });
   if (!item) return apiError("Solicitação não encontrada.", 404);
   const demoRecord = await db.auditEvent.findFirst({ where: { requestId: id, event: "DEMO_REQUEST_CREATED" }, select: { id: true } });
-  if (demoRecord) return apiError("Esta solicitação é apenas uma demonstração; decisões e execução no Coral estão bloqueadas.", 409);  if (item.status !== "PENDING_REVIEW") return apiError("A solicitação não está aguardando análise.", 409);
+  if (demoRecord) return apiError("Esta solicitação é apenas uma demonstração; decisões e execução no Coral estão bloqueadas.", 409);
+  if (item.status !== "PENDING_REVIEW") return apiError("A solicitação não está aguardando análise.", 409);
   if (parsed.data.decision === "REJECT") {
     try {
       await db.$transaction(async (tx) => {
-        const changed = await tx.dmaRequest.updateMany({ where: { id, version: item.version, status: "PENDING_REVIEW" }, data: { status: "REJECTED" } });
+        const changed = await tx.dmaRequest.updateMany({
+          where: { id, version: item.version, status: "PENDING_REVIEW" },
+          data: { status: "REJECTED" },
+        });
         if (!changed.count) throw new Error("A solicitação já recebeu uma decisão.");
-        await tx.reviewDecision.create({ data: { requestId: id, reviewerId: reviewer.id, requestVersion: item.version, decision: "REJECT", justification: parsed.data.justification } });
-        await tx.auditEvent.create({ data: { requestId: id, actorId: reviewer.id, event: "REQUEST_REJECTED", details: { version: item.version, justification: parsed.data.justification } } });
+        await tx.reviewDecision.create({
+          data: {
+            requestId: id,
+            reviewerId: reviewer.id,
+            requestVersion: item.version,
+            decision: "REJECT",
+            justification: parsed.data.justification,
+          },
+        });
+        await tx.auditEvent.create({
+          data: {
+            requestId: id,
+            actorId: reviewer.id,
+            event: "REQUEST_REJECTED",
+            details: { version: item.version, justification: parsed.data.justification },
+          },
+        });
       });
-    } catch (error) { return apiError(error instanceof Error ? error.message : "A solicitação já recebeu uma decisão.", 409); }
+    } catch (error) {
+      return apiError(error instanceof Error ? error.message : "A solicitação já recebeu uma decisão.", 409);
+    }
     return NextResponse.json({ status: "REJECTED" });
   }
-  if (!item.coralContractId) return apiError("O Coral não retornou o identificador interno deste contrato. A solicitação não pode ser executada; valide o contrato novamente e reenvie.", 409);
+  if (!item.coralContractId)
+    return apiError(
+      "O Coral não retornou o identificador interno deste contrato. A solicitação não pode ser executada; valide o contrato novamente e reenvie.",
+      409,
+    );
   let outcome;
-  try { outcome = await executeApprovedRequest({ id, version: item.version, actionType: item.actionType, coralContractId: item.coralContractId }, { actorId: reviewer.id, justification: parsed.data.justification }); }
-  catch (error) { return apiError(error instanceof Error ? error.message : "A solicitação já recebeu uma decisão.", 409); }
+  try {
+    outcome = await executeApprovedRequest(
+      { id, version: item.version, actionType: item.actionType, coralContractId: item.coralContractId },
+      { actorId: reviewer.id, justification: parsed.data.justification },
+    );
+  } catch (error) {
+    return apiError(error instanceof Error ? error.message : "A solicitação já recebeu uma decisão.", 409);
+  }
   return NextResponse.json(outcome, { status: outcome.status === "COMPLETED" ? 200 : 502 });
 }

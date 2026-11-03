@@ -3,16 +3,40 @@
  * (ex.: FOR024159-26 → FOR10); o contrato informa a loja completa (ex.: "Loja: SAO11").
  */
 export const STORES = [
-  "AJU10", "BPS10", "CGR10", "CNF10", "CWB10", "FLN10", "FOR10", "GIG10", "GYN10", "JPA10", "MCZ10", "NAT10",
-  "NVT10", "POA10", "QNS10", "RAO10", "REC20", "SAO10", "SAO11", "SDU10", "SSA10", "VCP10", "VIX10",
+  "AJU10",
+  "BPS10",
+  "CGR10",
+  "CNF10",
+  "CWB10",
+  "FLN10",
+  "FOR10",
+  "GIG10",
+  "GYN10",
+  "JPA10",
+  "MCZ10",
+  "NAT10",
+  "NVT10",
+  "POA10",
+  "QNS10",
+  "RAO10",
+  "REC20",
+  "SAO10",
+  "SAO11",
+  "SDU10",
+  "SSA10",
+  "VCP10",
+  "VIX10",
 ] as const;
-export type StoreCode = typeof STORES[number];
+export type StoreCode = (typeof STORES)[number];
 
 const STORE_PATTERN = /\b([A-Z]{3}\d{2})\b/;
 
 /** Lojas possíveis para o contrato pelo prefixo de 3 letras. SAO pode ser SAO10 ou SAO11. */
 export function contractStores(contractNumber: string): StoreCode[] {
-  const prefix = contractNumber.trim().toUpperCase().match(/^[A-Z]{3}/)?.[0];
+  const prefix = contractNumber
+    .trim()
+    .toUpperCase()
+    .match(/^[A-Z]{3}/)?.[0];
   return prefix ? STORES.filter((store) => store.startsWith(prefix)) : [];
 }
 

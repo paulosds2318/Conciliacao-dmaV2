@@ -5,7 +5,7 @@ export const DOCUMENT_TYPES = [
   { mimeType: "image/png", extensions: [".png"] },
   { mimeType: "image/webp", extensions: [".webp"] },
 ] as const;
-export type DocumentMimeType = typeof DOCUMENT_TYPES[number]["mimeType"];
+export type DocumentMimeType = (typeof DOCUMENT_TYPES)[number]["mimeType"];
 export const ACCEPTED_DOCUMENT_MIME_TYPES: readonly string[] = DOCUMENT_TYPES.map((type) => type.mimeType);
 export const DOCUMENT_ACCEPT = DOCUMENT_TYPES.flatMap((type) => [type.mimeType, ...type.extensions]).join(",");
 export const DOCUMENT_FORMATS_LABEL = "PDF, JPG, PNG ou WEBP";

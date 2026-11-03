@@ -19,11 +19,17 @@ export const TRANSITIONS: Record<RequestStatus, readonly RequestStatus[]> = {
   REJECTED: ["ANALYZING", "CANCELLED"],
   ANALYSIS_FAILED: ["ANALYZING", "CANCELLED"],
   EXECUTING: ["COMPLETED", "EXECUTION_FAILED", "EXECUTION_UNCERTAIN"],
-  EXECUTION_UNCERTAIN: [],
+  EXECUTION_UNCERTAIN: ["COMPLETED", "EXECUTION_FAILED"],
   EXECUTION_FAILED: [],
   COMPLETED: [],
   CANCELLED: [],
 };
+
+/** Foi aprovada pelo sistema quando a aprovação automática é mais recente que a última decisão do administrador (ex.: recusada pelo admin e reaberta com voucher Rentcars). */
+export function wasAutoApproved(autoApprovedAt: Date | string | null | undefined, lastDecisionAt: Date | string | null | undefined) {
+  if (!autoApprovedAt) return false;
+  return !lastDecisionAt || new Date(autoApprovedAt).getTime() > new Date(lastDecisionAt).getTime();
+}
 
 export function canTransition(from: RequestStatus, to: RequestStatus) {
   return TRANSITIONS[from].includes(to);

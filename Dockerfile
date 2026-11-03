@@ -10,6 +10,8 @@ FROM base AS builder
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
+# Lint e testes da regra de aprovação automática barram a imagem (e o deploy) quando algo quebra.
+RUN npm run lint && npm test
 RUN npm run build
 
 FROM base AS runner
@@ -17,7 +19,10 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 WORKDIR /app
-RUN npm install --global prisma@6.19.1
+# CLI do Prisma para as migrações ao iniciar. Instalada em pasta própria para aplicar o override de segurança do deepmerge-ts;
+# mantenha a versão igual à do package.json.
+RUN mkdir -p /opt/prisma-cli && cd /opt/prisma-cli \n  && printf '{"private":true,"dependencies":{"prisma":"6.19.3"},"overrides":{"deepmerge-ts":"8.0.2"}}' > package.json \n  && npm install --omit=dev --no-audit --no-fund && npm cache clean --force
+ENV PATH="/opt/prisma-cli/node_modules/.bin:$PATH"
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static

@@ -44,13 +44,28 @@ export default async function HomePage() {
   const metrics = isAdmin
     ? [
         { label: "Aguardando aprovação", value: pending, detail: "Solicitações que precisam de decisão", href: "/analise?aba=pendentes" },
-        { label: "Ações enviadas ao Coral", value: completed, detail: "Em andamento, concluídas ou com falha no processamento", href: "/analise?aba=aprovadas" },
-        { label: "Devolvidas para correção", value: corrections, detail: "Recusadas ou com análise não concluída, aguardando o atendente", href: "/analise?aba=devolvidas" },
+        {
+          label: "Ações enviadas ao Coral",
+          value: completed,
+          detail: "Em andamento, concluídas ou com falha no processamento",
+          href: "/analise?aba=aprovadas",
+        },
+        {
+          label: "Devolvidas para correção",
+          value: corrections,
+          detail: "Recusadas ou com análise não concluída, aguardando o atendente",
+          href: "/analise?aba=devolvidas",
+        },
       ]
     : [
         { label: "Minhas solicitações", value: total, detail: "Solicitações abertas por você", href: "/minhas-solicitacoes" },
         { label: "Aguardando aprovação", value: pending, detail: "Em análise do administrador", href: "/minhas-solicitacoes" },
-        { label: "Correções disponíveis", value: corrections, detail: "Revise solicitações recusadas ou com falha na análise", href: "/minhas-solicitacoes" },
+        {
+          label: "Correções disponíveis",
+          value: corrections,
+          detail: "Revise solicitações recusadas ou com falha na análise",
+          href: "/minhas-solicitacoes",
+        },
       ];
 
   const shortcuts = isAdmin
@@ -72,7 +87,11 @@ export default async function HomePage() {
         <div>
           <span className="eyebrow">{isAdmin ? "Painel administrativo" : "Área do atendente"}</span>
           <h1>Conciliação DMA</h1>
-          <p>{isAdmin ? "Acompanhe as solicitações e gerencie as ações da equipe." : "Abra solicitações e acompanhe o andamento dos seus contratos."}</p>
+          <p>
+            {isAdmin
+              ? "Acompanhe as solicitações e gerencie as ações da equipe."
+              : "Abra solicitações e acompanhe o andamento dos seus contratos."}
+          </p>
         </div>
         <div className="dashboard-heading-actions">
           <RefreshPageButton />
@@ -96,7 +115,11 @@ export default async function HomePage() {
         <div className="panel-head">
           <div>
             <h2>{isAdmin ? "Solicitações recentes" : "Minhas solicitações recentes"}</h2>
-            <p>{isAdmin ? "Visão rápida das últimas movimentações de toda a equipe." : "Acompanhe as últimas atualizações das solicitações abertas por você."}</p>
+            <p>
+              {isAdmin
+                ? "Visão rápida das últimas movimentações de toda a equipe."
+                : "Acompanhe as últimas atualizações das solicitações abertas por você."}
+            </p>
           </div>
           <Link className="button secondary" href={isAdmin ? "/analise" : "/minhas-solicitacoes"}>
             {isAdmin ? "Ver todas" : "Ver minhas solicitações"} →
@@ -120,9 +143,13 @@ export default async function HomePage() {
                   <td className="strong">{request.contractName}</td>
                   <td>{actionLabels[request.actionType] || request.actionType}</td>
                   {isAdmin && <td>{request.requester.name || request.requester.email}</td>}
-                  <td><span className="dashboard-status">{statusLabels[request.status] || "Situação não identificada"}</span></td>
+                  <td>
+                    <span className="dashboard-status">{statusLabels[request.status] || "Situação não identificada"}</span>
+                  </td>
                   <td>{formatDate(request.updatedAt)}</td>
-                  <td><Link href={`/solicitacoes/${request.id}`}>Abrir →</Link></td>
+                  <td>
+                    <Link href={`/solicitacoes/${request.id}`}>Abrir →</Link>
+                  </td>
                 </tr>
               ))}
               {!recent.length && (
@@ -140,7 +167,10 @@ export default async function HomePage() {
       <section className="dashboard-shortcuts" aria-label="Atalhos">
         {shortcuts.map((shortcut) => (
           <Link className={`dashboard-shortcut ${shortcut.primary ? "primary-shortcut" : ""}`} href={shortcut.href} key={shortcut.href}>
-            <strong>{shortcut.title}<span aria-hidden="true">→</span></strong>
+            <strong>
+              {shortcut.title}
+              <span aria-hidden="true">→</span>
+            </strong>
             <small>{shortcut.text}</small>
           </Link>
         ))}

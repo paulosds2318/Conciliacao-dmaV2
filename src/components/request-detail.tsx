@@ -1,125 +1,708 @@
 ﻿"use client";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/lib/auth-client";
 import { RequestManagement } from "@/components/request-management";
 import { FileAttachmentField } from "@/components/file-attachment-field";
-import { useConfirmation } from "@/components/confirmation-provider";
+import { useConfirmation, useReasonPrompt } from "@/components/confirmation-provider";
 import { personName } from "@/lib/person-name";
 import { DOCUMENT_ACCEPT } from "@/lib/document-types";
 import { requiredDocumentKinds, requiresVoucher } from "@/lib/services/request-policy";
 import { REQUEST_STATUS_LABELS } from "@/lib/services/request-status";
-import { createdFlashKey, submissionFeedback } from "@/lib/services/request-feedback";
+import {
+  PROCESSING_STATUSES,
+  feedbackFlashKey,
+  isSubmissionKind,
+  submissionFeedback,
+  type SubmissionKind,
+} from "@/lib/services/request-feedback";
 
 type Doc = { id: string; kind: string; version: number; originalName: string };
 type Field = { name: string; voucherValue?: string; contractValue?: string; match: boolean | null };
 type Comparison = { summary: string; confidence: number | null; fields: Field[] };
 type Analysis = { model: string; status: string; errorCode: string | null; comparison: Comparison | null };
-type Decision = { id: string; decision: string; justification: string | null; requestVersion: number; reviewer: { name: string; email?: string } };
-type AuditEvent = { id: string; event: string; details: (Record<string, unknown> & { reason?: string }) | null; createdAt: string; actor: { name: string; email?: string } | null };
-type RequestItem = { id: string; actionType: string; contractName: string; observations: string | null; status: string; version: number; requester: { id: string; name: string; email?: string }; documents: Doc[]; analyses: Analysis[]; decisions: Decision[]; auditEvents: AuditEvent[] };
+type Decision = {
+  id: string;
+  decision: string;
+  justification: string | null;
+  requestVersion: number;
+  reviewer: { name: string; email?: string };
+};
+type AuditEvent = {
+  id: string;
+  event: string;
+  details: (Record<string, unknown> & { reason?: string }) | null;
+  createdAt: string;
+  actor: { name: string; email?: string } | null;
+};
+type RequestItem = {
+  id: string;
+  actionType: string;
+  contractName: string;
+  observations: string | null;
+  status: string;
+  version: number;
+  requester: { id: string; name: string; email?: string };
+  documents: Doc[];
+  analyses: Analysis[];
+  decisions: Decision[];
+  auditEvents: AuditEvent[];
+};
 type SessionUser = { id?: string; role?: string };
-const auditLabels: Record<string, string> = { DEMO_REQUEST_CREATED: "Solicitação de demonstração registrada", REQUEST_SUBMITTED: "Solicitação aberta", REQUEST_EDITED: "Solicitação editada", REQUEST_REOPENED: "Solicitação reaberta e reenviada", AI_ANALYSIS_COMPLETED: "Análise automática concluída", AI_AUTO_REJECTED: "Recusa automática da análise documental", AI_ANALYSIS_FAILED: "Análise automática não concluída", REQUEST_REJECTED: "Solicitação recusada pelo administrador", REQUEST_APPROVED_EXECUTION_STARTED: "Ação aprovada; envio ao Coral iniciado", CORAL_EXECUTION_COMPLETED: "Ação concluída no Coral", CORAL_EXECUTION_FAILED: "Falha ao executar a ação no Coral", CORAL_EXECUTION_UNCERTAIN: "Resultado da ação no Coral não confirmado", REQUEST_CANCELLED: "Solicitação cancelada", REQUEST_ARCHIVED: "Solicitação arquivada / excluída" };
+const auditLabels: Record<string, string> = {
+  DEMO_REQUEST_CREATED: "Solicitação de demonstração registrada",
+  REQUEST_SUBMITTED: "Solicitação aberta",
+  REQUEST_EDITED: "Solicitação editada",
+  REQUEST_REOPENED: "Solicitação reaberta e reenviada",
+  AI_ANALYSIS_COMPLETED: "Análise automática concluída",
+  AI_AUTO_REJECTED: "Recusa automática da análise documental",
+  AI_ANALYSIS_FAILED: "Análise automática não concluída",
+  REQUEST_REJECTED: "Solicitação recusada pelo administrador",
+  REQUEST_APPROVED_EXECUTION_STARTED: "Ação aprovada; envio ao Coral iniciado",
+  CORAL_EXECUTION_COMPLETED: "Ação concluída no Coral",
+  CORAL_EXECUTION_FAILED: "Falha ao executar a ação no Coral",
+  CORAL_EXECUTION_UNCERTAIN: "Resultado da ação no Coral não confirmado",
+  REQUEST_CANCELLED: "Solicitação cancelada",
+  REQUEST_ARCHIVED: "Solicitação arquivada / excluída",
+};
 auditLabels.AI_ANALYSIS_RETRIED = "Nova tentativa de análise solicitada";
-auditLabels.REQUEST_AUTO_APPROVED_EXECUTION_STARTED = "Aprovada automaticamente (voucher Rentalcars/Rentcars conferido); envio ao Coral iniciado";
-auditLabels.AI_ANALYSIS_SKIPPED ="Análise automática dispensada (Considerar DMA não exige voucher)";
+auditLabels.REQUEST_AUTO_APPROVED_EXECUTION_STARTED =
+  "Aprovada automaticamente (voucher Rentalcars/Rentcars conferido); envio ao Coral iniciado";
+auditLabels.EXECUTION_RESULT_CONFIRMED = "Resultado conferido no Coral pelo administrador";
+auditLabels.AI_ANALYSIS_SKIPPED = "Análise automática dispensada (Considerar DMA não exige voucher)";
 const requestStatusLabels: Record<string, string> = REQUEST_STATUS_LABELS;
-const auditDetailLabels: Record<string, string> = { version: "Versão", previousContract: "Contrato anterior", status: "Situação", previousStatus: "Situação anterior", matches: "Dados dos documentos", rejected: "Recusada automaticamente", reasons: "Motivos", contract: "Contrato", coralSimulated: "Modo de teste", removedAttachments: "Anexos removidos", previousActionType: "Ação anterior", actionType: "Ação", previousObservations: "Observações anteriores", observations: "Observações", justification: "Justificativa", reason: "Motivo", message: "Detalhe" };
+const auditDetailLabels: Record<string, string> = {
+  version: "Versão",
+  previousContract: "Contrato anterior",
+  status: "Situação",
+  previousStatus: "Situação anterior",
+  matches: "Dados dos documentos",
+  rejected: "Recusada automaticamente",
+  reasons: "Motivos",
+  contract: "Contrato",
+  coralSimulated: "Modo de teste",
+  removedAttachments: "Anexos removidos",
+  previousActionType: "Ação anterior",
+  actionType: "Ação",
+  previousObservations: "Observações anteriores",
+  observations: "Observações",
+  justification: "Justificativa",
+  reason: "Motivo",
+  message: "Detalhe",
+  outcome: "Resultado no Coral",
+};
 function auditValue(key: string, value: unknown): string {
   if (key === "matches") return value === true ? "Conferem" : value === false ? "Divergentes" : "Não conclusivo";
+  if (key === "outcome") return value === "APPLIED" ? "Ação aplicada" : value === "NOT_APPLIED" ? "Ação não aplicada" : String(value);
   if (typeof value === "boolean") return value ? "Sim" : "Não";
   if (typeof value === "string") {
-    if (key === "status" || key === "previousStatus") return requestStatusLabels[value] || ({ SUCCEEDED: "Concluída", FAILED: "Falhou", UNCERTAIN: "Resultado não confirmado", IN_PROGRESS: "Em processamento" }[value] || value);
-    if (key === "actionType" || key === "previousActionType") return value === "CONSIDERAR_DMA" ? "Considerar DMA" : value === "DESCONSIDERAR_DMA" ? "Desconsiderar DMA" : value;
+    if (key === "status" || key === "previousStatus")
+      return (
+        requestStatusLabels[value] ||
+        { SUCCEEDED: "Concluída", FAILED: "Falhou", UNCERTAIN: "Resultado não confirmado", IN_PROGRESS: "Em processamento" }[value] ||
+        value
+      );
+    if (key === "actionType" || key === "previousActionType")
+      return value === "CONSIDERAR_DMA" ? "Considerar DMA" : value === "DESCONSIDERAR_DMA" ? "Desconsiderar DMA" : value;
     return value;
   }
-  if (Array.isArray(value)) return value.map((entry) => {
-    if (typeof entry === "string") return entry;
-    if (entry && typeof entry === "object") {
-      const attachment = entry as { kind?: string; fileName?: string };
-      if (attachment.kind && attachment.fileName) return (attachment.kind === "VOUCHER" ? "Voucher: " : "Contrato: ") + attachment.fileName;
-    }
-    return JSON.stringify(entry);
-  }).join(", ");
+  if (Array.isArray(value))
+    return value
+      .map((entry) => {
+        if (typeof entry === "string") return entry;
+        if (entry && typeof entry === "object") {
+          const attachment = entry as { kind?: string; fileName?: string };
+          if (attachment.kind && attachment.fileName)
+            return (attachment.kind === "VOUCHER" ? "Voucher: " : "Contrato: ") + attachment.fileName;
+        }
+        return JSON.stringify(entry);
+      })
+      .join(", ");
   return value == null ? "Não informado" : JSON.stringify(value);
 }
-function auditDetails(details: Record<string, unknown> | null) { return Object.entries(details || {}).filter(([key]) => key !== "idempotencyKey").map(([key, value]) => `${auditDetailLabels[key] || key}: ${auditValue(key, value)}`).join(" · "); }
+function auditDetails(details: Record<string, unknown> | null) {
+  return Object.entries(details || {})
+    .filter(([key]) => key !== "idempotencyKey")
+    .map(([key, value]) => `${auditDetailLabels[key] || key}: ${auditValue(key, value)}`)
+    .join(" · ");
+}
 function analysisFailureMessage(detail: string) {
   const value = detail.toLowerCase();
-  if (!detail) return "A análise automática não conseguiu ser concluída. Reenvie os documentos para tentar novamente. Se o problema continuar, peça ajuda ao administrador.";
-  if (value.includes("openrouter_api_key") || value.includes("openrouter_model")) return "A análise não começou porque a integração de IA está sem configuração. Avise o administrador para verificar as configurações do serviço.";
-  if (value.includes("http 401") || value.includes("http 403")) return "O serviço de análise recusou a autenticação. O administrador precisa verificar a chave de acesso da IA.";
-  if (value.includes("http 402")) return "O serviço de análise está sem créditos disponíveis. Avise o administrador para verificar a conta da IA.";
+  if (!detail)
+    return "A análise automática não conseguiu ser concluída. Reenvie os documentos para tentar novamente. Se o problema continuar, peça ajuda ao administrador.";
+  if (value.includes("openrouter_api_key") || value.includes("openrouter_model"))
+    return "A análise não começou porque a integração de IA está sem configuração. Avise o administrador para verificar as configurações do serviço.";
+  if (value.includes("http 401") || value.includes("http 403"))
+    return "O serviço de análise recusou a autenticação. O administrador precisa verificar a chave de acesso da IA.";
+  if (value.includes("http 402"))
+    return "O serviço de análise está sem créditos disponíveis. Avise o administrador para verificar a conta da IA.";
   if (value.includes("http 429")) return "O serviço de análise está temporariamente ocupado. Aguarde um pouco e reenvie os documentos.";
-  if (value.includes("http 400")) return "O serviço de análise não aceitou os documentos ou o modelo configurado. Verifique se os documentos estão legíveis e peça ao administrador para conferir a configuração da IA.";
+  if (value.includes("http 400"))
+    return "O serviço de análise não aceitou os documentos ou o modelo configurado. Verifique se os documentos estão legíveis e peça ao administrador para conferir a configuração da IA.";
   if (/http 5\d\d/.test(value)) return "O serviço de análise está temporariamente indisponível. Aguarde e reenvie os documentos.";
-  if (value.includes("timeout") || value.includes("timed out") || value.includes("aborted")) return "A análise demorou além do limite e foi interrompida. Aguarde e reenvie os documentos.";
-  if (value.includes("arquivo não encontrado") || value.includes("arquivo nao encontrado")) return "Não foi possível acessar um dos documentos anexados. Anexe novamente o voucher e o contrato.";
-  if (value.includes("ia_resposta_cortada") || value.includes("unterminated string") || value.includes("unexpected end of json")) return "A IA leu os documentos, mas a resposta dela veio incompleta (foi cortada antes do fim). Os documentos não têm problema: use “Tentar análise novamente” com os mesmos documentos.";
-  if (value.includes("ia_resposta_vazia")) return "O serviço de IA não devolveu nenhuma resposta para esta análise. Os documentos não têm problema: use “Tentar análise novamente”. Se persistir, avise o administrador.";
-  if (value.includes("ia_resposta_invalida") || value.includes("formato invalido") || value.includes("formato inválido") || value.includes("json")) return "A IA respondeu em um formato que o sistema não conseguiu interpretar. Os documentos não têm problema: use “Tentar análise novamente”. Se persistir, avise o administrador.";
+  if (value.includes("timeout") || value.includes("timed out") || value.includes("aborted"))
+    return "A análise demorou além do limite e foi interrompida. Aguarde e reenvie os documentos.";
+  if (value.includes("arquivo não encontrado") || value.includes("arquivo nao encontrado"))
+    return "Não foi possível acessar um dos documentos anexados. Anexe novamente o voucher e o contrato.";
+  if (value.includes("ia_resposta_cortada") || value.includes("unterminated string") || value.includes("unexpected end of json"))
+    return "A IA leu os documentos, mas a resposta dela veio incompleta (foi cortada antes do fim). Os documentos não têm problema: use “Tentar análise novamente” com os mesmos documentos.";
+  if (value.includes("ia_resposta_vazia"))
+    return "O serviço de IA não devolveu nenhuma resposta para esta análise. Os documentos não têm problema: use “Tentar análise novamente”. Se persistir, avise o administrador.";
+  if (
+    value.includes("ia_resposta_invalida") ||
+    value.includes("formato invalido") ||
+    value.includes("formato inválido") ||
+    value.includes("json")
+  )
+    return "A IA respondeu em um formato que o sistema não conseguiu interpretar. Os documentos não têm problema: use “Tentar análise novamente”. Se persistir, avise o administrador.";
   return "A análise automática não foi concluída por um erro inesperado. Tente novamente; se persistir, avise o administrador e informe o detalhe técnico abaixo.";
 }
 function withDisplayNames(request: RequestItem): RequestItem {
   return {
     ...request,
     requester: { ...request.requester, name: personName(request.requester.name, request.requester.email) },
-    decisions: request.decisions.map((decision) => ({ ...decision, reviewer: { ...decision.reviewer, name: personName(decision.reviewer.name, decision.reviewer.email) } })),
-    auditEvents: request.auditEvents.map((event) => event.actor ? { ...event, actor: { ...event.actor, name: personName(event.actor.name, event.actor.email) } } : event),
+    decisions: request.decisions.map((decision) => ({
+      ...decision,
+      reviewer: { ...decision.reviewer, name: personName(decision.reviewer.name, decision.reviewer.email) },
+    })),
+    auditEvents: request.auditEvents.map((event) =>
+      event.actor ? { ...event, actor: { ...event.actor, name: personName(event.actor.name, event.actor.email) } } : event,
+    ),
   };
 }
 export function RequestDetail() {
-  const { id } = useParams<{ id: string }>(); const router = useRouter(); const session = useSession(); const confirmAction = useConfirmation(); const [item, setItem] = useState<RequestItem | null>(null); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [busy, setBusy] = useState(false); const [justification, setJustification] = useState(""); const [reopenReason, setReopenReason] = useState(""); const [reopenContract, setReopenContract] = useState<string | null>(null); const [reopenContractValid, setReopenContractValid] = useState(""); const [checkingContract, setCheckingContract] = useState(false); const [contractMessage, setContractMessage] = useState(""); const [files, setFiles] = useState<{ voucher?: File; contract?: File }>({}); const [removedAttachments, setRemovedAttachments] = useState<Array<{ kind: string; fileName: string; confirmed: true }>>([]);
-  async function load() { const response = await fetch(`/api/requests/${id}`); const data = await response.json() as { request?: RequestItem; error?: string }; if (!response.ok || !data.request) throw new Error(data.error || "Solicitação não encontrada."); return withDisplayNames(data.request); }
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const session = useSession();
+  const confirmAction = useConfirmation();
+  const askReason = useReasonPrompt();
+  const [item, setItem] = useState<RequestItem | null>(null);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [justification, setJustification] = useState("");
+  const [reopenReason, setReopenReason] = useState("");
+  const [reopenContract, setReopenContract] = useState<string | null>(null);
+  const [reopenContractValid, setReopenContractValid] = useState("");
+  const [checkingContract, setCheckingContract] = useState(false);
+  const [contractMessage, setContractMessage] = useState("");
+  const [files, setFiles] = useState<{ voucher?: File; contract?: File }>({});
+  const [removedAttachments, setRemovedAttachments] = useState<Array<{ kind: string; fileName: string; confirmed: true }>>([]);
+  const pendingFeedback = useRef<SubmissionKind | null>(null);
+  // Mostra a mensagem do envio só quando a análise (em segundo plano) termina.
+  function showLoaded(request: RequestItem) {
+    setItem(request);
+    if (pendingFeedback.current && !PROCESSING_STATUSES.includes(request.status)) {
+      setSuccess(submissionFeedback(pendingFeedback.current, request.status));
+      pendingFeedback.current = null;
+    }
+  }
+  async function load() {
+    const response = await fetch(`/api/requests/${id}`);
+    const data = (await response.json()) as { request?: RequestItem; error?: string };
+    if (!response.ok || !data.request) throw new Error(data.error || "Solicitação não encontrada.");
+    return withDisplayNames(data.request);
+  }
   useEffect(() => {
     let active = true;
-    fetch(`/api/requests/${id}`).then(async (response) => { const data = await response.json() as { request?: RequestItem; error?: string }; if (!response.ok || !data.request) throw new Error(data.error || "Solicitação não encontrada."); return withDisplayNames(data.request); }).then((request) => { if (!active) return; setItem(request); try { if (window.sessionStorage.getItem(createdFlashKey(request.id))) { window.sessionStorage.removeItem(createdFlashKey(request.id)); setSuccess(submissionFeedback("created", request.status)); } } catch { /* armazenamento indisponível: segue sem a mensagem */ } }).catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : "Falha ao carregar solicitação."); });
-    return () => { active = false; };
+    fetch(`/api/requests/${id}`)
+      .then(async (response) => {
+        const data = (await response.json()) as { request?: RequestItem; error?: string };
+        if (!response.ok || !data.request) throw new Error(data.error || "Solicitação não encontrada.");
+        return withDisplayNames(data.request);
+      })
+      .then((request) => {
+        if (!active) return;
+        try {
+          const kind = window.sessionStorage.getItem(feedbackFlashKey(request.id));
+          if (isSubmissionKind(kind)) {
+            window.sessionStorage.removeItem(feedbackFlashKey(request.id));
+            pendingFeedback.current = kind;
+          }
+        } catch {
+          /* armazenamento indisponível: segue sem a mensagem */
+        }
+        showLoaded(request);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : "Falha ao carregar solicitação.");
+      });
+    return () => {
+      active = false;
+    };
   }, [id]);
-  async function decide(decision: "APPROVE" | "REJECT") { const message = decision === "APPROVE" ? "A ação será executada agora no Coral." : "A solicitação volta para o atendente corrigir, com a justificativa informada."; if (!await confirmAction({ title: decision === "APPROVE" ? "Aprovar solicitação?" : "Recusar solicitação?", description: message, confirmLabel: decision === "APPROVE" ? "Aprovar e executar" : "Confirmar recusa", danger: decision === "REJECT" })) return; setBusy(true); setError(""); setSuccess(""); try { const response = await fetch(`/api/requests/${id}/decision`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision, justification }) }); const data = await response.json() as { error?: string; status?: string }; if (!data.status) throw new Error(data.error || "Não foi possível registrar a decisão."); setItem(await load()); router.refresh(); if (data.status === "REJECTED") setSuccess("Solicitação recusada e devolvida ao atendente para correção."); else if (data.status === "COMPLETED") setSuccess("Solicitação aprovada e ação concluída no Coral."); else if (data.status === "EXECUTION_UNCERTAIN") setError(`Solicitação aprovada, mas o Coral não confirmou o resultado. Não reenvie sem verificar no Coral. ${data.error || ""}`.trim()); else setError(`Solicitação aprovada, mas o Coral recusou a ação. ${data.error || ""}`.trim()); } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível registrar a decisão."); } finally { setBusy(false); } }
+  const processing = !!item && PROCESSING_STATUSES.includes(item.status);
+  useEffect(() => {
+    if (!processing) return;
+    const interval = window.setInterval(() => {
+      void fetch(`/api/requests/${id}`, { cache: "no-store" })
+        .then(async (response) => {
+          const data = (await response.json()) as { request?: RequestItem };
+          if (response.ok && data.request) showLoaded(withDisplayNames(data.request));
+        })
+        .catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(interval);
+  }, [id, processing]);
+  async function confirmCoralResult(outcome: "APPLIED" | "NOT_APPLIED") {
+    const applied = outcome === "APPLIED";
+    const reason = await askReason({
+      title: applied ? "Registrar ação aplicada no Coral?" : "Registrar ação não aplicada?",
+      description: applied
+        ? "A solicitação passa para Ação concluída no Coral."
+        : "A solicitação passa para Falha ao executar ação no Coral. Para aplicar a ação, use a ação manual por planilha.",
+      reasonLabel: "O que foi conferido no Coral",
+      reasonPlaceholder: "Ex.: conferido no contrato em 03/11, DMA já desconsiderado.",
+      confirmLabel: applied ? "Registrar como aplicada" : "Registrar como não aplicada",
+      danger: !applied,
+    });
+    if (!reason) return;
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`/api/requests/${id}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outcome, reason }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Não foi possível registrar o resultado.");
+      setItem(await load());
+      router.refresh();
+      setSuccess(applied ? "Resultado registrado: ação aplicada no Coral." : "Resultado registrado: ação não aplicada no Coral.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível registrar o resultado.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function decide(decision: "APPROVE" | "REJECT") {
+    const message =
+      decision === "APPROVE"
+        ? "A ação será executada agora no Coral."
+        : "A solicitação volta para o atendente corrigir, com a justificativa informada.";
+    if (
+      !(await confirmAction({
+        title: decision === "APPROVE" ? "Aprovar solicitação?" : "Recusar solicitação?",
+        description: message,
+        confirmLabel: decision === "APPROVE" ? "Aprovar e executar" : "Confirmar recusa",
+        danger: decision === "REJECT",
+      }))
+    )
+      return;
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`/api/requests/${id}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, justification }),
+      });
+      const data = (await response.json()) as { error?: string; status?: string };
+      if (!data.status) throw new Error(data.error || "Não foi possível registrar a decisão.");
+      setItem(await load());
+      router.refresh();
+      if (data.status === "REJECTED") setSuccess("Solicitação recusada e devolvida ao atendente para correção.");
+      else if (data.status === "COMPLETED") setSuccess("Solicitação aprovada e ação concluída no Coral.");
+      else if (data.status === "EXECUTION_UNCERTAIN")
+        setError(
+          `Solicitação aprovada, mas o Coral não confirmou o resultado. Não reenvie sem verificar no Coral. ${data.error || ""}`.trim(),
+        );
+      else setError(`Solicitação aprovada, mas o Coral recusou a ação. ${data.error || ""}`.trim());
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível registrar a decisão.");
+    } finally {
+      setBusy(false);
+    }
+  }
   async function validateReopenContract(number: string) {
-    setCheckingContract(true); setReopenContractValid(""); setContractMessage("");
+    setCheckingContract(true);
+    setReopenContractValid("");
+    setContractMessage("");
     try {
       const response = await fetch(`/api/contracts?number=${encodeURIComponent(number)}`, { cache: "no-store" });
-      const data = await response.json() as { contract?: { id?: string | null; number?: string; displayName?: string }; error?: string };
+      const data = (await response.json()) as { contract?: { id?: string | null; number?: string; displayName?: string }; error?: string };
       if (!response.ok || !data.contract) throw new Error(data.error || "Não foi possível validar o contrato no Coral.");
-      if (!data.contract.id) throw new Error("O Coral não retornou o identificador interno deste contrato. Não é possível reabrir com ele agora.");
-      setReopenContractValid(number); setContractMessage(`Contrato validado no Coral: ${data.contract.displayName || number}`);
-    } catch (reason) { setContractMessage(reason instanceof Error ? reason.message : "Falha ao validar contrato no Coral."); }
-    finally { setCheckingContract(false); }
+      if (!data.contract.id)
+        throw new Error("O Coral não retornou o identificador interno deste contrato. Não é possível reabrir com ele agora.");
+      setReopenContractValid(number);
+      setContractMessage(`Contrato validado no Coral: ${data.contract.displayName || number}`);
+    } catch (reason) {
+      setContractMessage(reason instanceof Error ? reason.message : "Falha ao validar contrato no Coral.");
+    } finally {
+      setCheckingContract(false);
+    }
   }
   async function correct(event: React.FormEvent) {
     event.preventDefault();
-    const newContract = (reopenContract ?? item?.contractName ?? "").trim(); const contractChanged = !!item && newContract.toLowerCase() !== item.contractName.toLowerCase();
-    if (!newContract) { setError("Informe o número do contrato."); return; }
-    if (contractChanged && reopenContractValid !== newContract) { setError("Valide o novo número do contrato no Coral antes de reenviar."); return; }
-    if (!reopenReason.trim()) { setError("Informe o motivo da reabertura."); return; }
+    const newContract = (reopenContract ?? item?.contractName ?? "").trim();
+    const contractChanged = !!item && newContract.toLowerCase() !== item.contractName.toLowerCase();
+    if (!newContract) {
+      setError("Informe o número do contrato.");
+      return;
+    }
+    if (contractChanged && reopenContractValid !== newContract) {
+      setError("Valide o novo número do contrato no Coral antes de reenviar.");
+      return;
+    }
+    if (!reopenReason.trim()) {
+      setError("Informe o motivo da reabertura.");
+      return;
+    }
     const needsVoucher = requiresVoucher(item?.actionType || "");
-    if (!files.contract || (needsVoucher && !files.voucher)) { setError(needsVoucher ? "Anexe os dois documentos para reabrir a solicitação." : "Anexe o contrato para reabrir a solicitação."); return; }
-    if (!await confirmAction({ title: "Reenviar correção?", description: contractChanged ? `O contrato será alterado de ${item?.contractName} para ${newContract} e os documentos serão analisados novamente.` : "Os documentos serão analisados novamente e a solicitação voltará para aprovação do administrador.", confirmLabel: "Enviar correção" })) return;
-    setBusy(true); setError(""); setSuccess("");
-    const form = new FormData(); if (needsVoucher && files.voucher) form.set("voucher", files.voucher); form.set("contract", files.contract); form.set("reason", reopenReason.trim()); if (contractChanged) form.set("contractName", newContract); form.set("removedAttachments", JSON.stringify(removedAttachments));
+    if (!files.contract || (needsVoucher && !files.voucher)) {
+      setError(needsVoucher ? "Anexe os dois documentos para reabrir a solicitação." : "Anexe o contrato para reabrir a solicitação.");
+      return;
+    }
+    if (
+      !(await confirmAction({
+        title: "Reenviar correção?",
+        description: contractChanged
+          ? `O contrato será alterado de ${item?.contractName} para ${newContract} e os documentos serão analisados novamente.`
+          : "Os documentos serão analisados novamente e a solicitação voltará para aprovação do administrador.",
+        confirmLabel: "Enviar correção",
+      }))
+    )
+      return;
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    const form = new FormData();
+    if (needsVoucher && files.voucher) form.set("voucher", files.voucher);
+    form.set("contract", files.contract);
+    form.set("reason", reopenReason.trim());
+    if (contractChanged) form.set("contractName", newContract);
+    form.set("removedAttachments", JSON.stringify(removedAttachments));
     try {
       const response = await fetch(`/api/requests/${id}/correction`, { method: "POST", body: form });
-      const data = await response.json() as { error?: string; status?: string };
+      const data = (await response.json()) as { error?: string; status?: string };
       if (!response.ok) throw new Error(data.error);
-      const updated = await load(); setItem(updated); setReopenReason(""); setRemovedAttachments([]); setReopenContract(null); setReopenContractValid(""); setContractMessage("");
-      setSuccess(submissionFeedback("corrected", data.status));
+      pendingFeedback.current = "corrected";
+      showLoaded(await load());
+      setReopenReason("");
+      setRemovedAttachments([]);
+      setReopenContract(null);
+      setReopenContractValid("");
+      setContractMessage("");
       router.refresh();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Falha ao reenviar documentos."); }
-    finally { setBusy(false); }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Falha ao reenviar documentos.");
+    } finally {
+      setBusy(false);
+    }
   }
-  if (error && !item) return <main className="shell"><div className="notice error-notice">{error}</div></main>;
-  if (!item) return <main className="shell"><div className="empty">Carregando solicitação…</div></main>;
-  const sessionUser = session.data?.user as SessionUser | undefined; const role = sessionUser?.role || "attendant"; const admin = role === "admin"; const canManage = !admin && sessionUser?.id === item.requester.id; const latest = item.analyses?.[0]; const lastDecision = item.decisions[0]; const currentRejection = item.status === "REJECTED" && lastDecision?.decision === "REJECT" && lastDecision.requestVersion === item.version ? lastDecision : null; const comparison = latest?.comparison; const currentDocs = item.documents.filter((doc) => doc.version === item.version);
-  return <main className="shell"><div className="backline"><Link href={admin ? "/analise" : "/minhas-solicitacoes"}>&larr; Voltar</Link><span>Solicitação {item.id}</span></div><header className="page-heading"><div className="page-heading-left"><span className="eyebrow">{item.contractName}</span><h1>{item.actionType === "CONSIDERAR_DMA" ? "Considerar DMA" : "Desconsiderar DMA"}</h1><p>Versão {item.version} · enviada por {item.requester.name}</p></div><span className="status status-pendente">{latest?.status === "AUTO_REJECTED" ? "Recusada automaticamente pela análise documental" : requestStatusLabels[item.status] || "Status não reconhecido"}</span></header>{error && <div className="notice error-notice">{error}</div>}{success && <div className="notice">{success}</div>}
-    {item.observations && <section className="panel"><h2>Observações do atendente</h2><p style={{ whiteSpace: "pre-wrap" }}>{item.observations}</p></section>}<RequestManagement requestId={id} status={item.status} actionType={item.actionType} observations={item.observations} canManage={canManage} />{item.auditEvents?.filter((event) => event.event === "REQUEST_REOPENED").map((event) => <section className="panel" key={event.id}><h2>Reabertura · motivo informado pelo atendente</h2><p>{event.details?.reason || "Motivo não registrado."}</p></section>)}
-    {currentRejection && <section className="panel"><h2>Solicitação recusada</h2><p>{currentRejection.justification}</p></section>}{latest?.status === "AUTO_REJECTED" && <section className="panel"><h2>Recusa automática da validação documental</h2><p>{comparison?.summary || "A análise identificou informações ausentes ou ilegíveis nos documentos."}</p><p className="subcell">{requiresVoucher(item.actionType) ? "Confira se o contrato anexado é o mesmo validado no Coral e envie documentos legíveis com nome completo e CPF do cliente nos dois documentos." : "Confira se o contrato anexado é o mesmo validado no Coral e se o número do contrato está legível."} Depois, use “Corrigir e reabrir”.</p></section>}{item.status === "ANALYSIS_FAILED" && <section className="panel"><h2>Por que a solicitação não seguiu para aprovação?</h2><p>{analysisFailureMessage(String(latest?.errorCode || item.auditEvents.find((event) => event.event === "AI_ANALYSIS_FAILED")?.details?.message || ""))}</p><details><summary>Detalhe do erro</summary><p className="subcell">{String(latest?.errorCode || item.auditEvents.find((event) => event.event === "AI_ANALYSIS_FAILED")?.details?.message || "O sistema não registrou detalhes técnicos adicionais.")}</p></details><p className="subcell">A análise automática não foi concluída, então a solicitação não chegou à fila de aprovação do administrador. Siga a orientação acima: quando o problema não estiver nos documentos, use “Tentar análise novamente” no fim da página; se precisar trocar os documentos, use “Corrigir e reenviar para análise”.</p></section>}
-    <section className="panel"><div className="panel-head"><div><h2>Documentos da versão {item.version}</h2><p>Arquivos privados, exibidos somente a participantes autorizados.</p></div></div><div className="document-grid">{(["VOUCHER", "CONTRACT"] as const).filter((kind) => requiredDocumentKinds(item.actionType).includes(kind) || currentDocs.some((entry) => entry.kind === kind)).map((kind) => { const doc = currentDocs.find((entry) => entry.kind === kind); return <article key={kind}><h3>{kind === "VOUCHER" ? "Voucher" : "Contrato"}</h3>{doc ? <><p>{doc.originalName}</p><iframe title={kind} src={`/api/requests/${id}/documents/${doc.id}`} /></> : <p>Documento não encontrado.</p>}</article>; })}</div></section>
-    {latest && <section className="panel"><h2>Análise OpenRouter · {latest.model}</h2><p>{comparison?.summary || (latest.errorCode ? analysisFailureMessage(latest.errorCode) : "A análise está em andamento.")}</p>{comparison?.confidence != null && <p>Confiança estimada: {Math.round(comparison.confidence * 100)}%</p>}{comparison?.fields?.length ? <div className="table-wrap"><table><thead><tr><th>Campo</th><th>Voucher</th><th>Contrato</th><th>Resultado</th></tr></thead><tbody>{comparison.fields.map((field, index) => <tr key={`${field.name}-${index}`}><td>{field.name}</td><td>{field.voucherValue || "-"}</td><td>{field.contractValue || "-"}</td><td>{field.match === null ? "Não conclusivo" : field.match ? "Confere" : "Divergente"}</td></tr>)}</tbody></table></div> : null}<p className="subcell">A análise automática é auxiliar: a aprovação é do administrador, exceto vouchers Rentalcars e Rentcars com todos os dados conferidos, aprovados automaticamente.</p></section>}
-    {admin && item.status === "PENDING_REVIEW" && <section className="panel"><h2>Decisão do administrador</h2><label className="filter-field">Justificativa (obrigatória para recusa)<textarea value={justification} onChange={(event) => setJustification(event.target.value)} rows={4} /></label><div className="form-actions"><button className="button primary" disabled={busy} onClick={() => decide("APPROVE")}>Validar e executar ação</button><button className="button danger" disabled={busy || !justification.trim()} onClick={() => decide("REJECT")}>Recusar e devolver</button></div></section>}
-    {canManage && ["REJECTED", "ANALYSIS_FAILED"].includes(item.status) && <section className="panel"><h2>{item.status === "ANALYSIS_FAILED" ? "Corrigir e reenviar para análise" : "Corrigir e reabrir"}</h2><p>Informe o que está corrigindo e envie novamente {requiresVoucher(item.actionType) ? "os dois documentos" : "o contrato"}. O histórico será mantido. Se tudo conferir, segue para aprovação do administrador; vouchers Rentalcars e Rentcars com todos os dados conferidos são aprovados automaticamente.</p><form className="request-form" onSubmit={correct}><label className="filter-field">Número do contrato<input value={reopenContract ?? item.contractName} onChange={(event) => { setReopenContract(event.target.value); setReopenContractValid(""); setContractMessage(""); }} maxLength={80} required /></label><p className="subcell">Se o contrato anexado não for o mesmo validado no Coral, corrija o número aqui e valide novamente antes de reenviar.</p>{(reopenContract ?? item.contractName).trim().toLowerCase() !== item.contractName.toLowerCase() && <button className="button secondary" type="button" disabled={checkingContract || !(reopenContract || "").trim()} onClick={() => void validateReopenContract((reopenContract || "").trim())}>{checkingContract ? "Consultando..." : "Validar novo contrato no Coral"}</button>}{contractMessage && <div className={`notice ${reopenContractValid ? "" : "error-notice"}`}>{contractMessage}</div>}<label className="filter-field">Motivo da reabertura<textarea value={reopenReason} onChange={(event) => setReopenReason(event.target.value)} rows={3} maxLength={2000} placeholder="Explique o que foi corrigido ou por que está reenviando." required /></label>{requiresVoucher(item.actionType) && <FileAttachmentField label="Novo voucher (PDF ou imagem)" name="voucher" accept={DOCUMENT_ACCEPT} file={files.voucher || null} required onFileChange={(file) => setFiles((current) => ({ ...current, voucher: file || undefined }))} onRemove={(file) => setRemovedAttachments((current) => [...current, { kind: "VOUCHER", fileName: file.name, confirmed: true }])} />}<FileAttachmentField label="Novo contrato (PDF ou imagem)" name="contract" accept={DOCUMENT_ACCEPT} file={files.contract || null} required onFileChange={(file) => setFiles((current) => ({ ...current, contract: file || undefined }))} onRemove={(file) => setRemovedAttachments((current) => [...current, { kind: "CONTRACT", fileName: file.name, confirmed: true }])} /><button className="button primary" disabled={busy}>{busy ? "Enviando correção…" : "Reabrir após corrigir"}</button></form></section>}
-    <section className="panel"><h2>Histórico de ações</h2>{item.auditEvents?.length ? <ol className="activity-list">{item.auditEvents.map((event) => <li key={event.id}><div><strong>{auditLabels[event.event] || event.event}</strong><p>{auditDetails(event.details) || "Sem detalhes adicionais."}</p><small>{event.actor?.name || "Sistema"} · {new Date(event.createdAt).toLocaleString("pt-BR")}</small></div></li>)}</ol> : <p className="subcell">Nenhuma ação registrada.</p>}</section>
-</main>;
+  if (error && !item)
+    return (
+      <main className="shell">
+        <div className="notice error-notice">{error}</div>
+      </main>
+    );
+  if (!item)
+    return (
+      <main className="shell">
+        <div className="empty">Carregando solicitação…</div>
+      </main>
+    );
+  const sessionUser = session.data?.user as SessionUser | undefined;
+  const role = sessionUser?.role || "attendant";
+  const admin = role === "admin";
+  const canManage = !admin && sessionUser?.id === item.requester.id;
+  const latest = item.analyses?.[0];
+  const lastDecision = item.decisions[0];
+  const currentRejection =
+    item.status === "REJECTED" && lastDecision?.decision === "REJECT" && lastDecision.requestVersion === item.version ? lastDecision : null;
+  const comparison = latest?.comparison;
+  const currentDocs = item.documents.filter((doc) => doc.version === item.version);
+  return (
+    <main className="shell">
+      <div className="backline">
+        <Link href={admin ? "/analise" : "/minhas-solicitacoes"}>&larr; Voltar</Link>
+        <span>Solicitação {item.id}</span>
+      </div>
+      <header className="page-heading">
+        <div className="page-heading-left">
+          <span className="eyebrow">{item.contractName}</span>
+          <h1>{item.actionType === "CONSIDERAR_DMA" ? "Considerar DMA" : "Desconsiderar DMA"}</h1>
+          <p>
+            Versão {item.version} · enviada por {item.requester.name}
+          </p>
+        </div>
+        <span className="status status-pendente">
+          {latest?.status === "AUTO_REJECTED"
+            ? "Recusada automaticamente pela análise documental"
+            : requestStatusLabels[item.status] || "Status não reconhecido"}
+        </span>
+      </header>
+      {processing && (
+        <div className="notice" role="status">
+          {item.status === "ANALYZING"
+            ? "Análise automática em andamento. Esta tela se atualiza sozinha; pode levar até 2 minutos."
+            : "Enviando a ação ao Coral. Esta tela se atualiza sozinha."}
+        </div>
+      )}
+      {error && <div className="notice error-notice">{error}</div>}
+      {success && <div className="notice">{success}</div>}
+      {item.observations && (
+        <section className="panel">
+          <h2>Observações do atendente</h2>
+          <p style={{ whiteSpace: "pre-wrap" }}>{item.observations}</p>
+        </section>
+      )}
+      <RequestManagement
+        requestId={id}
+        status={item.status}
+        actionType={item.actionType}
+        observations={item.observations}
+        canManage={canManage}
+      />
+      {item.auditEvents
+        ?.filter((event) => event.event === "REQUEST_REOPENED")
+        .map((event) => (
+          <section className="panel" key={event.id}>
+            <h2>Reabertura · motivo informado pelo atendente</h2>
+            <p>{event.details?.reason || "Motivo não registrado."}</p>
+          </section>
+        ))}
+      {currentRejection && (
+        <section className="panel">
+          <h2>Solicitação recusada</h2>
+          <p>{currentRejection.justification}</p>
+        </section>
+      )}
+      {latest?.status === "AUTO_REJECTED" && (
+        <section className="panel">
+          <h2>Recusa automática da validação documental</h2>
+          <p>{comparison?.summary || "A análise identificou informações ausentes ou ilegíveis nos documentos."}</p>
+          <p className="subcell">
+            {requiresVoucher(item.actionType)
+              ? "Confira se o contrato anexado é o mesmo validado no Coral e envie documentos legíveis com nome completo e CPF do cliente nos dois documentos."
+              : "Confira se o contrato anexado é o mesmo validado no Coral e se o número do contrato está legível."}{" "}
+            Depois, use “Corrigir e reabrir”.
+          </p>
+        </section>
+      )}
+      {item.status === "ANALYSIS_FAILED" && (
+        <section className="panel">
+          <h2>Por que a solicitação não seguiu para aprovação?</h2>
+          <p>
+            {analysisFailureMessage(
+              String(latest?.errorCode || item.auditEvents.find((event) => event.event === "AI_ANALYSIS_FAILED")?.details?.message || ""),
+            )}
+          </p>
+          <details>
+            <summary>Detalhe do erro</summary>
+            <p className="subcell">
+              {String(
+                latest?.errorCode ||
+                  item.auditEvents.find((event) => event.event === "AI_ANALYSIS_FAILED")?.details?.message ||
+                  "O sistema não registrou detalhes técnicos adicionais.",
+              )}
+            </p>
+          </details>
+          <p className="subcell">
+            A análise automática não foi concluída, então a solicitação não chegou à fila de aprovação do administrador. Siga a orientação
+            acima: quando o problema não estiver nos documentos, use “Tentar análise novamente” no fim da página; se precisar trocar os
+            documentos, use “Corrigir e reenviar para análise”.
+          </p>
+        </section>
+      )}
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <h2>Documentos da versão {item.version}</h2>
+            <p>Arquivos privados, exibidos somente a participantes autorizados.</p>
+          </div>
+        </div>
+        <div className="document-grid">
+          {(["VOUCHER", "CONTRACT"] as const)
+            .filter((kind) => requiredDocumentKinds(item.actionType).includes(kind) || currentDocs.some((entry) => entry.kind === kind))
+            .map((kind) => {
+              const doc = currentDocs.find((entry) => entry.kind === kind);
+              return (
+                <article key={kind}>
+                  <h3>{kind === "VOUCHER" ? "Voucher" : "Contrato"}</h3>
+                  {doc ? (
+                    <>
+                      <p>{doc.originalName}</p>
+                      <iframe title={kind} src={`/api/requests/${id}/documents/${doc.id}`} />
+                    </>
+                  ) : (
+                    <p>Documento não encontrado.</p>
+                  )}
+                </article>
+              );
+            })}
+        </div>
+      </section>
+      {latest && (
+        <section className="panel">
+          <h2>Análise OpenRouter · {latest.model}</h2>
+          <p>{comparison?.summary || (latest.errorCode ? analysisFailureMessage(latest.errorCode) : "A análise está em andamento.")}</p>
+          {comparison?.confidence != null && <p>Confiança estimada: {Math.round(comparison.confidence * 100)}%</p>}
+          {comparison?.fields?.length ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Campo</th>
+                    <th>Voucher</th>
+                    <th>Contrato</th>
+                    <th>Resultado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparison.fields.map((field, index) => (
+                    <tr key={`${field.name}-${index}`}>
+                      <td>{field.name}</td>
+                      <td>{field.voucherValue || "-"}</td>
+                      <td>{field.contractValue || "-"}</td>
+                      <td>{field.match === null ? "Não conclusivo" : field.match ? "Confere" : "Divergente"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          <p className="subcell">
+            A análise automática é auxiliar: a aprovação é do administrador, exceto vouchers Rentalcars e Rentcars com todos os dados
+            conferidos, aprovados automaticamente.
+          </p>
+        </section>
+      )}
+      {admin && item.status === "EXECUTION_UNCERTAIN" && (
+        <section className="panel">
+          <h2>Resultado não confirmado pelo Coral</h2>
+          <p>
+            O Coral não respondeu a tempo, então não se sabe se a ação foi aplicada. Confira o contrato no Coral e registre o que encontrou;
+            não reenvie antes de conferir.
+          </p>
+          <div className="form-actions">
+            <button className="button primary" disabled={busy} onClick={() => void confirmCoralResult("APPLIED")}>
+              A ação foi aplicada
+            </button>
+            <button className="button danger" disabled={busy} onClick={() => void confirmCoralResult("NOT_APPLIED")}>
+              A ação não foi aplicada
+            </button>
+          </div>
+        </section>
+      )}
+      {admin && item.status === "PENDING_REVIEW" && (
+        <section className="panel">
+          <h2>Decisão do administrador</h2>
+          <label className="filter-field">
+            Justificativa (obrigatória para recusa)
+            <textarea value={justification} onChange={(event) => setJustification(event.target.value)} rows={4} />
+          </label>
+          <div className="form-actions">
+            <button className="button primary" disabled={busy} onClick={() => decide("APPROVE")}>
+              Validar e executar ação
+            </button>
+            <button className="button danger" disabled={busy || !justification.trim()} onClick={() => decide("REJECT")}>
+              Recusar e devolver
+            </button>
+          </div>
+        </section>
+      )}
+      {canManage && ["REJECTED", "ANALYSIS_FAILED"].includes(item.status) && (
+        <section className="panel">
+          <h2>{item.status === "ANALYSIS_FAILED" ? "Corrigir e reenviar para análise" : "Corrigir e reabrir"}</h2>
+          <p>
+            Informe o que está corrigindo e envie novamente {requiresVoucher(item.actionType) ? "os dois documentos" : "o contrato"}. O
+            histórico será mantido. Se tudo conferir, segue para aprovação do administrador; vouchers Rentalcars e Rentcars com todos os
+            dados conferidos são aprovados automaticamente.
+          </p>
+          <form className="request-form" onSubmit={correct}>
+            <label className="filter-field">
+              Número do contrato
+              <input
+                value={reopenContract ?? item.contractName}
+                onChange={(event) => {
+                  setReopenContract(event.target.value);
+                  setReopenContractValid("");
+                  setContractMessage("");
+                }}
+                maxLength={80}
+                required
+              />
+            </label>
+            <p className="subcell">
+              Se o contrato anexado não for o mesmo validado no Coral, corrija o número aqui e valide novamente antes de reenviar.
+            </p>
+            {(reopenContract ?? item.contractName).trim().toLowerCase() !== item.contractName.toLowerCase() && (
+              <button
+                className="button secondary"
+                type="button"
+                disabled={checkingContract || !(reopenContract || "").trim()}
+                onClick={() => void validateReopenContract((reopenContract || "").trim())}
+              >
+                {checkingContract ? "Consultando..." : "Validar novo contrato no Coral"}
+              </button>
+            )}
+            {contractMessage && <div className={`notice ${reopenContractValid ? "" : "error-notice"}`}>{contractMessage}</div>}
+            <label className="filter-field">
+              Motivo da reabertura
+              <textarea
+                value={reopenReason}
+                onChange={(event) => setReopenReason(event.target.value)}
+                rows={3}
+                maxLength={2000}
+                placeholder="Explique o que foi corrigido ou por que está reenviando."
+                required
+              />
+            </label>
+            {requiresVoucher(item.actionType) && (
+              <FileAttachmentField
+                label="Novo voucher (PDF ou imagem)"
+                name="voucher"
+                accept={DOCUMENT_ACCEPT}
+                file={files.voucher || null}
+                required
+                onFileChange={(file) => setFiles((current) => ({ ...current, voucher: file || undefined }))}
+                onRemove={(file) =>
+                  setRemovedAttachments((current) => [...current, { kind: "VOUCHER", fileName: file.name, confirmed: true }])
+                }
+              />
+            )}
+            <FileAttachmentField
+              label="Novo contrato (PDF ou imagem)"
+              name="contract"
+              accept={DOCUMENT_ACCEPT}
+              file={files.contract || null}
+              required
+              onFileChange={(file) => setFiles((current) => ({ ...current, contract: file || undefined }))}
+              onRemove={(file) =>
+                setRemovedAttachments((current) => [...current, { kind: "CONTRACT", fileName: file.name, confirmed: true }])
+              }
+            />
+            <button className="button primary" disabled={busy}>
+              {busy ? "Enviando correção…" : "Reabrir após corrigir"}
+            </button>
+          </form>
+        </section>
+      )}
+      <section className="panel">
+        <h2>Histórico de ações</h2>
+        {item.auditEvents?.length ? (
+          <ol className="activity-list">
+            {item.auditEvents.map((event) => (
+              <li key={event.id}>
+                <div>
+                  <strong>{auditLabels[event.event] || event.event}</strong>
+                  <p>{auditDetails(event.details) || "Sem detalhes adicionais."}</p>
+                  <small>
+                    {event.actor?.name || "Sistema"} · {new Date(event.createdAt).toLocaleString("pt-BR")}
+                  </small>
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="subcell">Nenhuma ação registrada.</p>
+        )}
+      </section>
+    </main>
+  );
 }

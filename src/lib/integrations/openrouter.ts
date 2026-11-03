@@ -19,6 +19,9 @@ export type DocumentComparison = {
   voucherOrigin?: string | null;
   /** Marcas e sites citados no voucher, exceto a Foco; cobre quando a IA lista o parceiro mas não preenche voucherOrigin. */
   voucherBrands?: string[];
+  /** Voucher em PDF com texto: o parceiro é lido do próprio texto, sem depender da IA. */
+  voucherTextAvailable?: boolean;
+  voucherTextOrigin?: string | null;
   confidence: number | null;
   identity: DocumentIdentity;
   fields: Array<{ name: string; voucherValue?: string; contractValue?: string; match: boolean | null; evidence?: string }>;

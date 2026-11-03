@@ -3,36 +3,46 @@ import { detectDocumentType } from "@/lib/document-types";
 
 type JsonObject = Record<string, unknown>;
 function asObject(value: unknown): JsonObject {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : {};
 }
 function readText(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const text = value.trim();
-  const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  if (!text || ["nao informado", "nao identificado", "nao localizado", "ilegivel", "indisponivel", "null", "n/a"].includes(normalized)) return null;
+  const normalized = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (!text || ["nao informado", "nao identificado", "nao localizado", "ilegivel", "indisponivel", "null", "n/a"].includes(normalized))
+    return null;
   return text;
 }
 function normalizeName(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 const nameParticles = new Set(["da", "das", "de", "do", "dos", "e"]);
 function nameTokens(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/[^a-z0-9]+/).filter((token) => token && !nameParticles.has(token));
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token && !nameParticles.has(token));
 }
 export function namesIdentifySamePerson(first: string, second: string) {
   const normalizedFirst = normalizeName(first);
   const normalizedSecond = normalizeName(second);
   if (normalizedFirst === normalizedSecond) return true;
-  const [shorter, longer] = normalizedFirst.length <= normalizedSecond.length
-    ? [normalizedFirst, normalizedSecond]
-    : [normalizedSecond, normalizedFirst];
+  const [shorter, longer] =
+    normalizedFirst.length <= normalizedSecond.length ? [normalizedFirst, normalizedSecond] : [normalizedSecond, normalizedFirst];
   // OCR often joins words; accept a substantial name when it appears intact in the longer form.
   if (shorter.length >= 8 && longer.includes(shorter)) return true;
   const firstTokens = nameTokens(first);
   const secondTokens = nameTokens(second);
-  const [shortTokens, longTokens] = firstTokens.length <= secondTokens.length
-    ? [firstTokens, secondTokens]
-    : [secondTokens, firstTokens];
+  const [shortTokens, longTokens] = firstTokens.length <= secondTokens.length ? [firstTokens, secondTokens] : [secondTokens, firstTokens];
   return shortTokens.length >= 2 && shortTokens.every((token) => longTokens.includes(token));
 }
 export function correctStoredNameComparison(raw: unknown): unknown {
@@ -53,14 +63,24 @@ export function correctStoredNameComparison(raw: unknown): unknown {
     }),
   };
 }
-function normalizeCpf(value: string) { return value.replace(/\D/g, ""); }
+function normalizeCpf(value: string) {
+  return value.replace(/\D/g, "");
+}
 /** Ignora pontuação, espaços, caixa e zeros à esquerda ao comparar números de contrato. */
 export function normalizeContractNumber(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^0+(?=\d)/, "");
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .replace(/^0+(?=\d)/, "");
 }
 /** Normaliza o código de reserva Foco (R + 7 dígitos + "-" + ano); devolve null se não houver um. */
 export function normalizeReservationCode(value: string | null) {
-  const match = value?.toUpperCase().replace(/\s/g, "").match(/R(\d{7})-?(\d{2})/);
+  const match = value
+    ?.toUpperCase()
+    .replace(/\s/g, "")
+    .match(/R(\d{7})-?(\d{2})/);
   return match ? `R${match[1]}-${match[2]}` : null;
 }
 export function contractNumbersMatch(expected: string, found: string) {
@@ -89,7 +109,11 @@ function makeIdentity(raw: unknown): DocumentIdentity {
   };
 }
 
-export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Array, expectedContractNumber: string): Promise<DocumentComparison> {
+export async function comparePdfs(
+  voucher: Uint8Array | null,
+  contract: Uint8Array,
+  expectedContractNumber: string,
+): Promise<DocumentComparison> {
   const key = process.env.OPENROUTER_API_KEY;
   const model = process.env.OPENROUTER_MODEL;
   if (!key || !model) throw new Error("Configure OPENROUTER_API_KEY e OPENROUTER_MODEL para a análise documental.");
@@ -117,16 +141,40 @@ export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Arr
   ].join(" ");
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "HTTP-Referer": process.env.BETTER_AUTH_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000", "X-Title": "Conciliacao DMA" },
-    body: JSON.stringify({ model, temperature: 0, max_tokens: 4000, messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: [{ type: "text", text: voucher ? "Leia os dados de identidade do cliente nos dois arquivos e cruze voucher com contrato." : "Leia o numero do contrato e os dados de identidade do cliente no contrato anexado." }, ...(voucher ? [toPart(voucher, "voucher")] : []), toPart(contract, "contrato")] },
-    ] }),
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": process.env.BETTER_AUTH_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000",
+      "X-Title": "Conciliacao DMA",
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0,
+      max_tokens: 4000,
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: voucher
+                ? "Leia os dados de identidade do cliente nos dois arquivos e cruze voucher com contrato."
+                : "Leia o numero do contrato e os dados de identidade do cliente no contrato anexado.",
+            },
+            ...(voucher ? [toPart(voucher, "voucher")] : []),
+            toPart(contract, "contrato"),
+          ],
+        },
+      ],
+    }),
     signal: AbortSignal.timeout(120000),
     cache: "no-store",
   });
   if (!response.ok) throw new Error(`OpenRouter respondeu com HTTP ${response.status}.`);
-  const body = await response.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string | Array<{ text?: string }> } }> };
+  const body = (await response.json()) as {
+    choices?: Array<{ finish_reason?: string; message?: { content?: string | Array<{ text?: string }> } }>;
+  };
   const choice = body.choices?.[0];
   const content = choice?.message?.content;
   const text = typeof content === "string" ? content : content?.map((part) => part.text || "").join("") || "";
@@ -136,7 +184,8 @@ export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Arr
     parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
   } catch (error) {
     const detail = error instanceof Error ? error.message : "JSON inválido";
-    if (choice?.finish_reason === "length") throw new Error(`IA_RESPOSTA_CORTADA: a resposta da IA ultrapassou o limite de tamanho e veio incompleta (${detail}).`);
+    if (choice?.finish_reason === "length")
+      throw new Error(`IA_RESPOSTA_CORTADA: a resposta da IA ultrapassou o limite de tamanho e veio incompleta (${detail}).`);
     throw new Error(`IA_RESPOSTA_INVALIDA: a resposta da IA não estava em JSON válido (${detail}).`);
   }
   const json = asObject(parsed);
@@ -146,19 +195,58 @@ export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Arr
   const suppliedFields = Array.isArray(json.fields) ? json.fields.map(asObject) : [];
   const otherFields = suppliedFields.flatMap((field) => {
     if (typeof field.name !== "string" || /cpf|nome.*cliente|numero.*contrato|número.*contrato|reserva/i.test(field.name)) return [];
-    return [{ name: field.name, voucherValue: readText(field.voucherValue) || undefined, contractValue: readText(field.contractValue) || undefined, match: typeof field.match === "boolean" ? field.match : null, evidence: readText(field.evidence) || undefined }];
+    return [
+      {
+        name: field.name,
+        voucherValue: readText(field.voucherValue) || undefined,
+        contractValue: readText(field.contractValue) || undefined,
+        match: typeof field.match === "boolean" ? field.match : null,
+        evidence: readText(field.evidence) || undefined,
+      },
+    ];
   });
   const foundContractNumber = readText(json.contractNumber);
-  const contractNumber = { expected: expectedContractNumber, found: foundContractNumber, match: foundContractNumber ? contractNumbersMatch(expectedContractNumber, foundContractNumber) : null };
+  const contractNumber = {
+    expected: expectedContractNumber,
+    found: foundContractNumber,
+    match: foundContractNumber ? contractNumbersMatch(expectedContractNumber, foundContractNumber) : null,
+  };
   const rawReservation = asObject(json.reservation);
   const voucherReservation = voucher ? normalizeReservationCode(readText(rawReservation.voucher)) : null;
   const contractReservation = normalizeReservationCode(readText(rawReservation.contract));
-  const reservation = { voucher: voucherReservation, contract: contractReservation, match: voucherReservation && contractReservation ? voucherReservation === contractReservation : null };
+  const reservation = {
+    voucher: voucherReservation,
+    contract: contractReservation,
+    match: voucherReservation && contractReservation ? voucherReservation === contractReservation : null,
+  };
   const fields: DocumentComparison["fields"] = [
-    { name: `Número do contrato (Coral: ${expectedContractNumber})`, contractValue: foundContractNumber || undefined, match: contractNumber.match },
-    ...(voucher ? [{ name: "Código da reserva", voucherValue: voucherReservation || undefined, contractValue: contractReservation || undefined, match: reservation.match }] : []),
-    { name: "CPF do cliente", voucherValue: identity.voucher.cpf || undefined, contractValue: identity.contract.cpf || undefined, match: identity.cpfMatch },
-    { name: "Nome completo do cliente", voucherValue: identity.voucher.name || undefined, contractValue: identity.contract.name || undefined, match: identity.nameMatch },
+    {
+      name: `Número do contrato (Coral: ${expectedContractNumber})`,
+      contractValue: foundContractNumber || undefined,
+      match: contractNumber.match,
+    },
+    ...(voucher
+      ? [
+          {
+            name: "Código da reserva",
+            voucherValue: voucherReservation || undefined,
+            contractValue: contractReservation || undefined,
+            match: reservation.match,
+          },
+        ]
+      : []),
+    {
+      name: "CPF do cliente",
+      voucherValue: identity.voucher.cpf || undefined,
+      contractValue: identity.contract.cpf || undefined,
+      match: identity.cpfMatch,
+    },
+    {
+      name: "Nome completo do cliente",
+      voucherValue: identity.voucher.name || undefined,
+      contractValue: identity.contract.name || undefined,
+      match: identity.nameMatch,
+    },
     ...otherFields,
   ];
   return {
@@ -166,7 +254,8 @@ export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Arr
     contractNumber,
     reservation,
     voucherOrigin: voucher ? readText(json.voucherOrigin) : null,
-    voucherBrands: voucher && Array.isArray(json.voucherBrands) ? json.voucherBrands.flatMap((brand) => readText(brand) ?? []).slice(0, 20) : [],
+    voucherBrands:
+      voucher && Array.isArray(json.voucherBrands) ? json.voucherBrands.flatMap((brand) => readText(brand) ?? []).slice(0, 20) : [],
     confidence: typeof json.confidence === "number" ? Math.max(0, Math.min(1, json.confidence)) : null,
     identity,
     fields,

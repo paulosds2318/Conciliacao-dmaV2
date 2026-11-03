@@ -11,7 +11,11 @@ function findContractStore(row: Record<string, unknown>, depth = 0): StoreCode |
       if (direct) return direct;
     }
     if (depth < 2 && value && typeof value === "object" && !Array.isArray(value)) {
-      const nested = STORE_KEY.test(key) ? Object.values(value as Record<string, unknown>).map(parseStoreCode).find(Boolean) : null;
+      const nested = STORE_KEY.test(key)
+        ? Object.values(value as Record<string, unknown>)
+            .map(parseStoreCode)
+            .find(Boolean)
+        : null;
       const found = nested ?? findContractStore(value as Record<string, unknown>, depth + 1);
       if (found) return found;
     }
@@ -26,7 +30,22 @@ function candidates(data: unknown): Record<string, unknown>[] {
   if (obj.data && typeof obj.data === "object") return candidates(obj.data);
   return [obj];
 }
-function field(row: Record<string, unknown>, keys: string[]) { for (const k of keys) if (row[k] !== undefined && row[k] !== null) return String(row[k]); return ""; }
+function field(row: Record<string, unknown>, keys: string[]) {
+  for (const k of keys) if (row[k] !== undefined && row[k] !== null) return String(row[k]);
+  return "";
+}
+/** Validade (ms) da chave do Coral, lida do próprio token (JWT do Cognito); null se não houver chave ou ela não trouxer validade. */
+export function coralTokenExpiresAt(): number | null {
+  const token = process.env.CORAL_AUTH_TOKEN?.trim().replace(/^Bearer\s+/i, "");
+  const payload = token?.split(".")[1];
+  if (!payload) return null;
+  try {
+    const { exp } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { exp?: unknown };
+    return typeof exp === "number" ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
 function coralAuthorization() {
   const token = process.env.CORAL_AUTH_TOKEN?.trim();
   if (token) return /^Bearer\s/i.test(token) ? token : `Bearer ${token}`;
@@ -36,19 +55,51 @@ function coralAuthorization() {
   if (username.includes(":")) throw new Error("CORAL_USERNAME não pode conter dois-pontos na autenticação Basic.");
   return `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}`;
 }
+const CORAL_UNAVAILABLE =
+  "Não foi possível falar com o Coral agora (sem resposta ou fora do ar). Tente novamente em instantes; se continuar, avise o administrador.";
 export async function lookupContract(number: string): Promise<ContractMatch | null> {
-  if (process.env.MODO_TESTE_API === "true" && !process.env.CORAL_AUTH_TOKEN?.trim()) return { number, id: number, displayName: `Contrato ${number} (simulacao)`, store: null, raw: { simulated: true } };
+  if (process.env.MODO_TESTE_API === "true" && !process.env.CORAL_AUTH_TOKEN?.trim())
+    return { number, id: number, displayName: `Contrato ${number} (simulacao)`, store: null, raw: { simulated: true } };
   const template = process.env.CORAL_CONTRACT_LOOKUP_URL || "https://servicescoral.aluguefoco.com.br/api/rentagreement/{CONTRATO}";
   const url = template.replace("{CONTRATO}", encodeURIComponent(number));
-  const response = await fetch(url, { headers: { Accept: "application/json", Authorization: coralAuthorization() }, signal: AbortSignal.timeout(15000), cache: "no-store" });
+  const authorization = coralAuthorization();
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { Accept: "application/json", Authorization: authorization },
+      signal: AbortSignal.timeout(15000),
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error(CORAL_UNAVAILABLE);
+  }
   if (response.status === 404) return null;
-  if (response.status === 401 || response.status === 403) throw new Error("N\u00e3o encontramos esse contrato no Coral. Confira o n\u00famero informado ou confirme se ele existe.");
-  if (!response.ok) throw new Error("N\u00e3o encontramos esse contrato no Coral. Confira o n\u00famero informado ou confirme se ele existe.");
+  // Chave vencida ou sem permiss\u00e3o n\u00e3o \u00e9 problema do contrato: o atendente precisa saber que deve avisar o administrador.
+  if (response.status === 401 || response.status === 403)
+    throw new Error(
+      "A integra\u00e7\u00e3o com o Coral est\u00e1 sem acesso (chave vencida ou sem permiss\u00e3o). Avise o administrador; o contrato n\u00e3o foi verificado.",
+    );
+  // O Coral responde HTTP 500 para contratos inexistentes, ent\u00e3o 5xx continua apontando primeiro para o n\u00famero.
+  if (response.status >= 500)
+    throw new Error(
+      "N\u00e3o encontramos esse contrato no Coral. Confira o n\u00famero informado; se ele estiver certo e o erro persistir, avise o administrador.",
+    );
+  if (!response.ok) throw new Error(`O Coral recusou a consulta (HTTP ${response.status}). Avise o administrador.`);
   const body: unknown = await response.json();
   const rows = candidates(body);
-  const row = rows.find((x) => field(x, ["contrato", "contractNumber", "number", "numero", "rentAgreementNumber", "id"]).toLowerCase() === number.toLowerCase()) ?? rows[0];
+  const row =
+    rows.find(
+      (x) =>
+        field(x, ["contrato", "contractNumber", "number", "numero", "rentAgreementNumber", "id"]).toLowerCase() === number.toLowerCase(),
+    ) ?? rows[0];
   if (!row || (rows.length === 1 && row.success === false)) return null;
-  return { number: field(row, ["contrato", "contractNumber", "number", "numero", "rentAgreementNumber"]) || number, id: field(row, ["id", "contractId", "rentAgreementId"]) || null, displayName: field(row, ["nome", "name", "cliente", "customerName"]) || `Contrato ${number}`, store: findContractStore(row), raw: row };
+  return {
+    number: field(row, ["contrato", "contractNumber", "number", "numero", "rentAgreementNumber"]) || number,
+    id: field(row, ["id", "contractId", "rentAgreementId"]) || null,
+    displayName: field(row, ["nome", "name", "cliente", "customerName"]) || `Contrato ${number}`,
+    store: findContractStore(row),
+    raw: row,
+  };
 }
 export async function applyDmaAction(contractNumber: string, action: DmaAction) {
   if (process.env.MODO_TESTE_API === "true") return { status: "SIMULATED", response: { simulated: true } };
@@ -83,7 +134,8 @@ function dmaEligibilityUrl() {
 
 export async function applyDmaEligibility(rentAgreementId: string, action: DmaAction) {
   if (process.env.MODO_TESTE_API === "true") return { status: "SIMULATED", response: { simulated: true } };
-  if (!rentAgreementId.trim()) throw Object.assign(new Error("O Coral não forneceu o identificador interno do contrato."), { uncertain: false });
+  if (!rentAgreementId.trim())
+    throw Object.assign(new Error("O Coral não forneceu o identificador interno do contrato."), { uncertain: false });
 
   const token = process.env.CORAL_AUTH_TOKEN?.trim();
   if (!token) throw Object.assign(new Error("Configure o token de autenticação do Coral para executar ações DMA."), { uncertain: false });
@@ -104,35 +156,47 @@ export async function applyDmaEligibility(rentAgreementId: string, action: DmaAc
     });
     const responseText = await response.text();
     let responseBody: unknown = {};
-    try { responseBody = JSON.parse(responseText) as unknown; } catch { /* preserve the Coral response below */ }
-    const envelope = responseBody && typeof responseBody === "object" ? responseBody as Record<string, unknown> : {};
-    const body = envelope.data && typeof envelope.data === "object" ? envelope.data as DmaEligibilityResponse : envelope as DmaEligibilityResponse;
+    try {
+      responseBody = JSON.parse(responseText) as unknown;
+    } catch {
+      /* preserve the Coral response below */
+    }
+    const envelope = responseBody && typeof responseBody === "object" ? (responseBody as Record<string, unknown>) : {};
+    const body =
+      envelope.data && typeof envelope.data === "object" ? (envelope.data as DmaEligibilityResponse) : (envelope as DmaEligibilityResponse);
     const responseData = { httpStatus: response.status, body: responseBody };
 
     if (!response.ok) {
-      const message = response.status === 403
-        ? "O Coral recusou a ação. Verifique se o usuário tem a permissão BULK_UPDATE_DMA_ELIGIBILITY."
-        : response.status === 400 && /access token/i.test(responseText)
-          ? "A autenticação do Coral expirou ou está ausente. Renove o token e tente novamente."
-          : `O Coral respondeu com HTTP ${response.status}.`;
+      const message =
+        response.status === 403
+          ? "O Coral recusou a ação. Verifique se o usuário tem a permissão BULK_UPDATE_DMA_ELIGIBILITY."
+          : response.status === 401 || (response.status === 400 && /access token/i.test(responseText))
+            ? "A integração com o Coral está sem acesso (chave vencida ou ausente). A ação não foi aplicada; renove a chave e tente novamente."
+            : `O Coral respondeu com HTTP ${response.status}.`;
       throw Object.assign(new Error(message), { uncertain: response.status >= 500, response: responseData });
     }
 
     if (body.updated === 1) return { status: "SUCCEEDED", response: responseData };
 
-    const matchingError = body.errors?.find((entry) => entry.rentAgreementId?.trim().toLowerCase() === rentAgreementId.trim().toLowerCase());
+    const matchingError = body.errors?.find(
+      (entry) => entry.rentAgreementId?.trim().toLowerCase() === rentAgreementId.trim().toLowerCase(),
+    );
     const reason = matchingError?.reason;
-    const message = reason === "NOT_FOUND" || (body.notFound ?? 0) > 0
-      ? "O contrato não foi localizado no Coral. Confira o contrato e tente novamente."
-      : reason === "INVALID_CODE" || (body.invalid ?? 0) > 0
-        ? "O identificador do contrato foi recusado pelo Coral. Confira os dados do contrato."
-        : reason === "UPDATE_FAILED" || (body.failed ?? 0) > 0
-          ? "O Coral não conseguiu atualizar a situação DMA deste contrato."
-          : "O Coral não confirmou a atualização da situação DMA.";
+    const message =
+      reason === "NOT_FOUND" || (body.notFound ?? 0) > 0
+        ? "O contrato não foi localizado no Coral. Confira o contrato e tente novamente."
+        : reason === "INVALID_CODE" || (body.invalid ?? 0) > 0
+          ? "O identificador do contrato foi recusado pelo Coral. Confira os dados do contrato."
+          : reason === "UPDATE_FAILED" || (body.failed ?? 0) > 0
+            ? "O Coral não conseguiu atualizar a situação DMA deste contrato."
+            : "O Coral não confirmou a atualização da situação DMA.";
     throw Object.assign(new Error(message), { uncertain: false, response: responseData });
   } catch (error) {
     if (error instanceof Error && "uncertain" in error) throw error;
-    throw Object.assign(new Error("Não foi possível confirmar a resposta do Coral. A execução pode ter sido realizada; não tente novamente automaticamente."), { uncertain: true });
+    throw Object.assign(
+      new Error("Não foi possível confirmar a resposta do Coral. A execução pode ter sido realizada; não tente novamente automaticamente."),
+      { uncertain: true },
+    );
   }
 }
 
@@ -142,8 +206,18 @@ export function extractDmaCurrentStatus(payload: unknown): { status: DmaCurrentS
   let desconsiderarFlag: boolean | null = null;
   let flagSource = "considerar_dma/desconsiderar_dma";
   let explicit: { status: DmaCurrentStatus; sourceField: string } | null = null;
-  const keyNorm = (key: string) => key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  const valueNorm = (value: unknown) => String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const keyNorm = (key: string) =>
+    key
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  const valueNorm = (value: unknown) =>
+    String(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
   const booleanValue = (value: unknown): boolean | null => {
     if (typeof value === "boolean") return value;
     if (typeof value === "number" && (value === 0 || value === 1)) return value === 1;
@@ -154,24 +228,38 @@ export function extractDmaCurrentStatus(payload: unknown): { status: DmaCurrentS
   };
   const explicitValue = (value: unknown): DmaCurrentStatus | null => {
     const normalized = valueNorm(value);
-    if (["DESCONSIDERAR", "DESCONSIDERADO", "DESCONSIDERADA", "DESCONSIDERARDMA", "DESCONSIDERADMA"].includes(normalized)) return "DESCONSIDERAR";
+    if (["DESCONSIDERAR", "DESCONSIDERADO", "DESCONSIDERADA", "DESCONSIDERARDMA", "DESCONSIDERADMA"].includes(normalized))
+      return "DESCONSIDERAR";
     if (["CONSIDERAR", "CONSIDERADO", "CONSIDERADA", "CONSIDERARDMA", "CONSIDERADMA"].includes(normalized)) return "CONSIDERAR";
     return null;
   };
   const walk = (value: unknown, path: string, depth: number) => {
     if (!value || typeof value !== "object" || depth > 8 || explicit) return;
-    if (Array.isArray(value)) { value.forEach((entry, index) => walk(entry, `${path}[${index}]`, depth + 1)); return; }
+    if (Array.isArray(value)) {
+      value.forEach((entry, index) => walk(entry, `${path}[${index}]`, depth + 1));
+      return;
+    }
     for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
       const normalized = keyNorm(key);
       const source = path ? `${path}.${key}` : key;
       if (["considerardma", "considerar", "dmaconsiderado", "consideradma"].includes(normalized)) {
         const flag = booleanValue(child);
-        if (flag !== null) { considerarFlag = flag; flagSource = source; }
-        else { const status = explicitValue(child); if (status) explicit = { status, sourceField: source }; }
+        if (flag !== null) {
+          considerarFlag = flag;
+          flagSource = source;
+        } else {
+          const status = explicitValue(child);
+          if (status) explicit = { status, sourceField: source };
+        }
       } else if (["desconsiderardma", "desconsiderar", "dmadesconsiderado", "desconsideradma"].includes(normalized)) {
         const flag = booleanValue(child);
-        if (flag !== null) { desconsiderarFlag = flag; flagSource = source; }
-        else { const status = explicitValue(child); if (status) explicit = { status, sourceField: source }; }
+        if (flag !== null) {
+          desconsiderarFlag = flag;
+          flagSource = source;
+        } else {
+          const status = explicitValue(child);
+          if (status) explicit = { status, sourceField: source };
+        }
       } else if (["statusdma", "situacaodma", "acaodma", "dmaaction", "dmacurrentstatus"].includes(normalized)) {
         const status = explicitValue(child);
         if (status) explicit = { status, sourceField: source };

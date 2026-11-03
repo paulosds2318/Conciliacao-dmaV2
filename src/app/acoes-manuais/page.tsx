@@ -7,5 +7,12 @@ export default async function ManualActionsPage() {
   const user = await getUser();
   if (!user) redirect("/login?redirect=/acoes-manuais");
   if (user.role !== "admin") redirect("/");
-  return <><ManualActionForm /><main className="shell batch-history"><BatchList /></main></>;
+  return (
+    <>
+      <ManualActionForm />
+      <main className="shell batch-history">
+        <BatchList />
+      </main>
+    </>
+  );
 }

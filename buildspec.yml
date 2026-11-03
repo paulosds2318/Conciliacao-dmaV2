@@ -2,6 +2,7 @@
 # Variáveis do projeto CodeBuild: ECR_REPOSITORY (nome do repositório ECR) e CONTAINER_NAME (nome do container
 # na task definition do ECS). AWS_DEFAULT_REGION é preenchida pelo próprio CodeBuild.
 # O projeto precisa de "privileged mode" habilitado para rodar Docker.
+# O docker build roda lint e testes antes de compilar: se falharem, a imagem não é publicada e o deploy não acontece.
 version: 0.2
 
 env:

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
@@ -18,11 +18,15 @@ export async function POST(request: NextRequest, { params }: Context) {
   if (!item || item.requesterId !== user.id) return apiError("Solicitação não encontrada.", 404);
   if (!["REJECTED", "ANALYSIS_FAILED"].includes(item.status)) return apiError("Esta solicitação não está aguardando correção.", 409);
   const needsVoucher = requiresVoucher(item.actionType);
-  const form = await request.formData(); const voucher = needsVoucher ? form.get("voucher") : null; const contract = form.get("contract"); const reason = form.get("reason");
+  const form = await request.formData();
+  const voucher = needsVoucher ? form.get("voucher") : null;
+  const contract = form.get("contract");
+  const reason = form.get("reason");
   if (typeof reason !== "string" || !reason.trim()) return apiError("Informe o motivo da reabertura.");
   if (reason.trim().length > 2000) return apiError("O motivo da reabertura deve ter no máximo 2.000 caracteres.");
   if (!(contract instanceof File) || !contract.size) return apiError("Anexe novamente o contrato (PDF ou imagem).");
-  if (needsVoucher && (!(voucher instanceof File) || !voucher.size)) return apiError("Anexe novamente o voucher e o contrato (PDF ou imagem).");
+  if (needsVoucher && (!(voucher instanceof File) || !voucher.size))
+    return apiError("Anexe novamente o voucher e o contrato (PDF ou imagem).");
   // O atendente pode corrigir o número do contrato na reabertura; o novo número é validado novamente no Coral.
   const requestedContract = form.get("contractName");
   const newContractNumber = typeof requestedContract === "string" ? requestedContract.trim() : "";
@@ -32,24 +36,76 @@ export async function POST(request: NextRequest, { params }: Context) {
     const accessError = await checkContractAccess(user, newContractNumber);
     if (accessError) return apiError(accessError, 403);
     let coral;
-    try { coral = await lookupContract(newContractNumber); }
-    catch (error) { return apiError(error instanceof Error ? error.message : "Falha na validação do Coral.", 502); }
+    try {
+      coral = await lookupContract(newContractNumber);
+    } catch (error) {
+      return apiError(error instanceof Error ? error.message : "Falha na validação do Coral.", 502);
+    }
     if (!coral) return apiError("Não encontramos o novo número de contrato no Coral. Confira o número informado.", 422);
-    if (!coral.id) return apiError("O Coral não retornou o identificador interno do novo contrato. Não é possível reabrir com ele agora.", 422);
+    if (!coral.id)
+      return apiError("O Coral não retornou o identificador interno do novo contrato. Não é possível reabrir com ele agora.", 422);
     const coralAccessError = await checkContractAccess(user, coral.number, coral.store);
     if (coralAccessError) return apiError(coralAccessError, 403);
     contractChange = { contractName: coral.number, coralContractId: coral.id };
   }
-  const version = item.version + 1; const stored: Array<{ storageKey: string }> = [];
+  const version = item.version + 1;
+  const stored: Array<{ storageKey: string }> = [];
   try {
-    const [v, c] = await Promise.all([voucher instanceof File ? storePdf(id, "VOUCHER", voucher) : null, storePdf(id, "CONTRACT", contract)]); if (v) stored.push(v); stored.push(c);
-    await db.$transaction([
-      ...(v && voucher instanceof File ? [db.requestDocument.create({ data: { requestId: id, kind: "VOUCHER", storageKey: v.storageKey, originalName: voucher.name, mimeType: v.mimeType, sizeBytes: v.sizeBytes, sha256: v.sha256, version } })] : []),
-      db.requestDocument.create({ data: { requestId: id, kind: "CONTRACT", storageKey: c.storageKey, originalName: contract.name, mimeType: c.mimeType, sizeBytes: c.sizeBytes, sha256: c.sha256, version } }),
-      db.dmaRequest.update({ where: { id }, data: { status: "ANALYZING", version, submittedAt: new Date(), ...(contractChange ?? {}) } }),
-      db.auditEvent.create({ data: { requestId: id, actorId: user.id, event: "REQUEST_REOPENED", details: { version, reason: reason.trim(), ...(contractChange ? { previousContract: item.contractName, contract: contractChange.contractName } : {}), removedAttachments: parseDocumentRemovalHistory(form.get("removedAttachments")) } } }),
+    const [v, c] = await Promise.all([
+      voucher instanceof File ? storePdf(id, "VOUCHER", voucher) : null,
+      storePdf(id, "CONTRACT", contract),
     ]);
-    const analysis = await analyzeRequest(id, version, v?.storageKey ?? null, c.storageKey);
-    return NextResponse.json({ status: analysis.ok ? analysis.status : "ANALYSIS_FAILED", error: analysis.ok ? null : analysis.error });
-  } catch (error) { await Promise.all(stored.map((x) => removeStoredPdf(x.storageKey))); return apiError(error instanceof Error ? error.message : "Falha ao corrigir a solicitação."); }
+    if (v) stored.push(v);
+    stored.push(c);
+    await db.$transaction([
+      ...(v && voucher instanceof File
+        ? [
+            db.requestDocument.create({
+              data: {
+                requestId: id,
+                kind: "VOUCHER",
+                storageKey: v.storageKey,
+                originalName: voucher.name,
+                mimeType: v.mimeType,
+                sizeBytes: v.sizeBytes,
+                sha256: v.sha256,
+                version,
+              },
+            }),
+          ]
+        : []),
+      db.requestDocument.create({
+        data: {
+          requestId: id,
+          kind: "CONTRACT",
+          storageKey: c.storageKey,
+          originalName: contract.name,
+          mimeType: c.mimeType,
+          sizeBytes: c.sizeBytes,
+          sha256: c.sha256,
+          version,
+        },
+      }),
+      db.dmaRequest.update({ where: { id }, data: { status: "ANALYZING", version, submittedAt: new Date(), ...(contractChange ?? {}) } }),
+      db.auditEvent.create({
+        data: {
+          requestId: id,
+          actorId: user.id,
+          event: "REQUEST_REOPENED",
+          details: {
+            version,
+            reason: reason.trim(),
+            ...(contractChange ? { previousContract: item.contractName, contract: contractChange.contractName } : {}),
+            removedAttachments: parseDocumentRemovalHistory(form.get("removedAttachments")),
+          },
+        },
+      }),
+    ]);
+    // A análise (até 2 min) roda depois da resposta: o balanceador da AWS corta conexões longas. A tela acompanha o status até concluir.
+    after(() => analyzeRequest(id, version, v?.storageKey ?? null, c.storageKey));
+    return NextResponse.json({ status: "ANALYZING" });
+  } catch (error) {
+    await Promise.all(stored.map((x) => removeStoredPdf(x.storageKey)));
+    return apiError(error instanceof Error ? error.message : "Falha ao corrigir a solicitação.");
+  }
 }

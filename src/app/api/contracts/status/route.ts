@@ -16,6 +16,15 @@ export async function GET(request: NextRequest) {
     const coralAccessError = await checkContractAccess(user, contract.number, contract.store);
     if (coralAccessError) return apiError(coralAccessError, 403);
     const dma = extractDmaCurrentStatus(contract.raw);
-    return NextResponse.json({ contract: { number: contract.number, displayName: contract.displayName, currentDmaStatus: dma.status, statusSourceField: dma.sourceField } });
-  } catch (error) { return apiError(error instanceof Error ? error.message : "Falha ao consultar o Coral.", 502); }
+    return NextResponse.json({
+      contract: {
+        number: contract.number,
+        displayName: contract.displayName,
+        currentDmaStatus: dma.status,
+        statusSourceField: dma.sourceField,
+      },
+    });
+  } catch (error) {
+    return apiError(error instanceof Error ? error.message : "Falha ao consultar o Coral.", 502);
+  }
 }
