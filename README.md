@@ -12,15 +12,15 @@ Aplicação web para acompanhar solicitações de consideração ou desconsidera
 - A análise via OpenRouter procura nome e CPF no contrato e compara esses dados com o voucher. Se os dados necessários não forem encontrados ou divergirem, a solicitação é recusada automaticamente e fica disponível para correção.
 - A análise da IA é auxiliar. Solicitações que passam pela análise seguem para decisão do administrador.
 - O administrador aprova ou recusa com justificativa. A aprovação inicia a ação configurada no Coral; a recusa permite ao atendente corrigir os documentos e reenviar a mesma solicitação para aprovação.
-- O atendente só pode editar ou excluir solicitações devolvidas pela análise (recusadas ou com falha na análise), para então reabri-las. Enquanto a solicitação está na fila de aprovação do administrador, ou depois de aprovada, o atendente não pode alterá-la.
-- O administrador pode excluir solicitações de qualquer status e informa o motivo. A exclusão é um arquivamento lógico, preservando o histórico de auditoria.
+- O atendente só pode editar ou cancelar solicitações devolvidas pela análise (recusadas ou com falha na análise), para então reabri-las. Enquanto a solicitação está na fila de aprovação do administrador, ou depois de aprovada, o atendente não pode alterá-la.
+- Não há exclusão de solicitações nem de ações por planilha: todo registro permanece no histórico para auditoria. Solicitações indevidas são recusadas pelo administrador (com justificativa) ou canceladas pelo atendente. Registros excluídos antes dessa regra continuam disponíveis para consulta em Arquivadas/Excluídas.
 
 ### Perfis
 
 A aplicação tem dois perfis:
 
 - **Atendente:** cria solicitações, acompanha as que abriu, corrige solicitações recusadas, gerencia as pendentes permitidas e consulta a situação DMA.
-- **Admin:** aprova ou recusa solicitações, consulta solicitações aprovadas e arquivadas, acompanha o histórico geral, exclui solicitações informando o motivo, gerencia usuários e executa ações manuais por planilha.
+- **Admin:** aprova ou recusa solicitações, consulta solicitações aprovadas e arquivadas, acompanha o histórico geral, gerencia usuários e executa ações manuais por planilha.
 
 Não há cadastro público. O acesso é criado pelo seed inicial ou pela gestão de usuários do administrador.
 
@@ -31,7 +31,7 @@ Não há cadastro público. O acesso é criado pelo seed inicial ou pela gestão
 - Exportação de resultados em Excel e CSV.
 - Consulta da situação DMA de um contrato individual ou por planilha, com opção de exportar o resultado.
 - Filtros, paginação e botão de atualização nas listas de solicitações.
-- Histórico de auditoria com os eventos da solicitação, incluindo reabertura, decisões, alterações e exclusão, com responsável, data e motivo quando aplicável.
+- Histórico de auditoria com os eventos da solicitação, incluindo reabertura, decisões, alterações e cancelamento, com responsável, data e motivo quando aplicável.
 - Tema claro e escuro.
 
 ## Telas principais

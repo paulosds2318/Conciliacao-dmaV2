@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { comparePdfs } from "@/lib/server/openrouter";
 import { executeApprovedRequest } from "@/lib/server/execute-request";
-import { getContractNumberRejectionReasons, getIdentityRejectionReasons, isRentalcarsAutoApprovable } from "@/lib/server/identity-check";
+import { getContractNumberRejectionReasons, getIdentityRejectionReasons, isPartnerAutoApprovable } from "@/lib/server/identity-check";
 import { getStoredPdf } from "@/lib/server/storage";
 
 /** Sem voucher (Considerar DMA) a IA confere somente o número do contrato anexado contra o contrato validado no Coral. */
@@ -26,7 +26,7 @@ export async function analyzeRequest(requestId: string, version: number, voucher
         await tx.auditEvent.create({ data: { requestId, event: "AI_AUTO_REJECTED", details: { version, reasons: rejectionReasons } } });
       }
     });
-    analyzed = { status, comparison: savedComparison, rejectionReasons, autoApprove: !!voucher && !rejectionReasons.length && isRentalcarsAutoApprovable(comparison) };
+    analyzed = { status, comparison: savedComparison, rejectionReasons, autoApprove: !!voucher && !rejectionReasons.length && isPartnerAutoApprovable(comparison) };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha na analise documental.";
     await db.$transaction([
@@ -38,17 +38,17 @@ export async function analyzeRequest(requestId: string, version: number, voucher
   }
   const { autoApprove, ...result } = analyzed;
   if (!autoApprove) return { ok: true as const, ...result };
-  return { ok: true as const, ...result, status: await autoApproveRentalcars(requestId, version) ?? result.status };
+  return { ok: true as const, ...result, status: await autoApprovePartnerVoucher(requestId, version) ?? result.status };
 }
 
-/** Voucher Rentalcars conferido: executa a ação no Coral sem aguardar o administrador. Devolve o novo status, ou null se seguir para aprovação manual. */
-async function autoApproveRentalcars(requestId: string, version: number) {
+/** Voucher Rentalcars ou Rentcars conferido: executa a ação no Coral sem aguardar o administrador. Devolve o novo status, ou null se seguir para aprovação manual. */
+async function autoApprovePartnerVoucher(requestId: string, version: number) {
   const item = await db.dmaRequest.findUnique({ where: { id: requestId }, select: { actionType: true, coralContractId: true } });
   if (!item?.coralContractId) return null;
   const demoRecord = await db.auditEvent.findFirst({ where: { requestId, event: "DEMO_REQUEST_CREATED" }, select: { id: true } });
   if (demoRecord) return null;
   try {
-    const outcome = await executeApprovedRequest({ id: requestId, version, actionType: item.actionType, coralContractId: item.coralContractId }, { actorId: null, reason: "Voucher Rentalcars com dados do cliente conferidos com o contrato." });
+    const outcome = await executeApprovedRequest({ id: requestId, version, actionType: item.actionType, coralContractId: item.coralContractId }, { actorId: null, reason: "Voucher Rentalcars/Rentcars com dados do cliente conferidos com o contrato." });
     return outcome.status;
   } catch {
     return null;

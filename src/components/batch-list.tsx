@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { DeletionConfirmationDialog } from "@/components/deletion-confirmation-dialog";
 import { batchJobStatusLabels } from "@/lib/batch-status-labels";
 
 type Job = {
@@ -24,10 +23,7 @@ type Job = {
 export function BatchList() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [showArchived, setShowArchived] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Job | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -45,44 +41,18 @@ export function BatchList() {
     return () => { active = false; window.removeEventListener("app:refresh", refresh); };
   }, [showArchived]);
 
-  async function archiveJob(reason: string) {
-    if (!deleteTarget || deletingId) return false;
-    const target = deleteTarget;
-    setDeletingId(target.id);
-    setError("");
-    try {
-      const response = await fetch(`/api/batches/${target.id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      const data = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(data.error || "Não foi possível excluir esta ação.");
-      setJobs((current) => current.filter((job) => job.id !== target.id));
-      setNotice("Ação removida do histórico ativo e preservada para auditoria.");
-      window.setTimeout(() => setNotice(""), 4000);
-      return true;
-    } catch (reasonError) {
-      setError(reasonError instanceof Error ? reasonError.message : "Não foi possível excluir esta ação.");
-      return false;
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
   return (
     <section className="panel">
       <div className="panel-head">
         <div>
           <h2>Histórico de ações por planilha</h2>
-          <p>{showArchived ? "Registros excluídos, com motivo e responsável preservados para auditoria." : "O resultado fica salvo por contrato para retomar o processamento."}</p>
+          <p>{showArchived ? "Ações excluídas antes da remoção da exclusão, mantidas para consulta." : "O resultado fica salvo por contrato para retomar o processamento."}</p>
         </div>
         <button className="button secondary" type="button" onClick={() => { setError(""); setShowArchived((value) => !value); }}>
           {showArchived ? "Voltar ao histórico ativo" : "Ver excluídas"}
         </button>
       </div>
       {error && <div className="notice error-notice" role="alert">{error}</div>}
-      {notice && <div className="notice" role="status">{notice}</div>}
       <div className="table-wrap">
         <table>
           <thead>
@@ -106,12 +76,7 @@ export function BatchList() {
                   <td>{job.deletedAt ? new Date(job.deletedAt).toLocaleString("pt-BR") : "—"}</td>
                 </>}
                 <td className="table-actions">
-                  {!showArchived && <>
-                    <Link href={`/acoes-manuais/${job.id}`}>Abrir</Link>
-                    <button className="button danger" type="button" disabled={deletingId === job.id} title="Excluir do histórico ativo" onClick={() => setDeleteTarget(job)}>
-                      {deletingId === job.id ? "Excluindo…" : "Excluir"}
-                    </button>
-                  </>}
+                  {!showArchived && <Link href={`/acoes-manuais/${job.id}`}>Abrir</Link>}
                 </td>
               </tr>
             ))}
@@ -119,14 +84,6 @@ export function BatchList() {
           </tbody>
         </table>
       </div>
-      <DeletionConfirmationDialog
-        open={Boolean(deleteTarget)}
-        title="Excluir ação do histórico?"
-        description={deleteTarget ? `${deleteTarget.status === "RUNNING" ? "A ação está em andamento. Uma chamada já enviada ao Coral ainda pode terminar; os próximos contratos serão interrompidos após essa resposta. " : ""}A ação “${deleteTarget.originalName}” será removida da lista ativa. As tentativas, resultados, responsável e motivo ficarão preservados para auditoria.` : ""}
-        confirmLabel="Excluir ação"
-        onConfirm={archiveJob}
-        onCancel={() => setDeleteTarget(null)}
-      />
     </section>
   );
 }

@@ -10,11 +10,12 @@ export async function POST(request: NextRequest, { params }: Context) {
   const job = await db.bulkActionJob.findUnique({ where: { id } });
   if (!job || job.deletedAt) return apiError("Ação manual não encontrada.", 404);
   if (job.status === "RUNNING") return apiError("Aguarde o fim do processamento atual.", 409);
+  if (job.status === "CANCELLED") return apiError("Esta planilha foi cancelada e não pode ser executada novamente.", 409);
   const body = await request.json().catch(() => null) as { type?: string; confirmDuplicateRisk?: boolean } | null;
   if (body?.type !== "FAILED" && body?.type !== "UNCERTAIN") return apiError("Selecione quais contratos devem ser tentados novamente.");
   if (body.type === "UNCERTAIN" && body.confirmDuplicateRisk !== true) return apiError("Confirme que a nova tentativa pode repetir uma ação já aplicada.");
   const result = await db.$transaction(async (tx) => {
-    const changedJob = await tx.bulkActionJob.updateMany({ where: { id, deletedAt: null, status: { not: "RUNNING" } }, data: { status: "PAUSED" } });
+    const changedJob = await tx.bulkActionJob.updateMany({ where: { id, deletedAt: null, status: { notIn: ["RUNNING", "CANCELLED"] } }, data: { status: "PAUSED" } });
     if (!changedJob.count) return 0;
     const reset = await tx.bulkActionItem.updateMany({ where: { jobId: id, status: body.type }, data: { status: "PENDING", note: body.type === "UNCERTAIN" ? "Nova tentativa confirmada manualmente; resultado anterior incerto" : null, completedAt: null, processingStartedAt: null } });
     return reset.count;

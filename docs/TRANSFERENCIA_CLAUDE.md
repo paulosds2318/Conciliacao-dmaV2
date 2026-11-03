@@ -37,7 +37,7 @@ Pastas importantes:
 - Abre solicitações e acompanha as próprias solicitações, inclusive as arquivadas.
 - Envia voucher e contrato, ambos obrigatórios em PDF.
 - Corrige e reabre solicitações recusadas pela análise/administração.
-- Pode editar ou excluir solicitações próprias pendentes de aprovação, inclusive reabertas. Solicitações aprovadas não podem ser editadas/excluídas pelo atendente.
+- Pode editar ou cancelar solicitações próprias devolvidas pela análise. Solicitações aprovadas não podem ser editadas/canceladas pelo atendente.
 - Pode consultar a situação DMA individualmente ou por planilha.
 - Pode repetir a análise documental de uma solicitação em `ANALYSIS_FAILED`, usando os PDFs já enviados.
 
@@ -45,7 +45,7 @@ Pastas importantes:
 
 - Analisa a fila, aprova ou recusa com justificativa.
 - Consulta solicitações aprovadas, concluídas, arquivadas/excluídas e o acompanhamento geral.
-- Pode excluir/arquivar solicitações em qualquer estado; deve informar o motivo. O arquivamento é lógico e preserva histórico.
+- Não exclui nem arquiva solicitações ou planilhas: o histórico é sempre mantido. Registros arquivados antes dessa regra continuam visíveis para consulta.
 - Gerencia usuários e executa ações manuais por planilha.
 - Não abre solicitações nem possui a lista “Minhas solicitações”.
 
@@ -132,7 +132,7 @@ APIs relevantes:
 - `/api/requests/[id]/correction`: reabrir com novos PDFs e motivo.
 - `/api/requests/[id]/reanalyze`: repetir a análise de uma versão já enviada, sem reenviar arquivos.
 - `/api/requests/[id]/decision`: decisão do administrador.
-- `/api/requests/[id]/archive`, `/cancel`, `/edit`, `/documents/[documentId]`: arquivamento, cancelamento, edição e leitura autorizada de documentos.
+- `/api/requests/[id]/cancel`, `/edit`, `/documents/[documentId]`: cancelamento, edição e leitura autorizada de documentos.
 - `/api/requests/report`: relatório de solicitações.
 - `/api/batches`, `/api/batches/[id]`, `/execute`, `/retry`, `/report`, `/preview`: ações por planilha.
 - `/api/contracts` e `/api/contracts/status*`: consulta/validação de contratos e situação DMA.

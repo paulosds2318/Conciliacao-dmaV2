@@ -1,13 +1,13 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useConfirmation } from "@/components/confirmation-provider";
+import { useConfirmation, useReasonPrompt } from "@/components/confirmation-provider";
 import { ATTENDANT_MANAGEABLE_STATUSES } from "@/lib/services/request-policy";
 type Props = { requestId: string; status: string; actionType: string; observations: string | null; canManage: boolean };
 const editableStatuses = ATTENDANT_MANAGEABLE_STATUSES;
 const cancellableStatuses = ATTENDANT_MANAGEABLE_STATUSES;
 export function RequestManagement({ requestId, status, actionType, observations, canManage }: Props) {
-  const router = useRouter(); const confirmAction = useConfirmation(); const [action, setAction] = useState(actionType); const [note, setNote] = useState(observations || "");
+  const router = useRouter(); const confirmAction = useConfirmation(); const askReason = useReasonPrompt(); const [action, setAction] = useState(actionType); const [note, setNote] = useState(observations || "");
   const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [success, setSuccess] = useState("");
   if (!canManage || (!editableStatuses.includes(status) && !cancellableStatuses.includes(status))) return null;
   async function edit() {
@@ -22,10 +22,11 @@ export function RequestManagement({ requestId, status, actionType, observations,
     finally { setBusy(false); }
   }
   async function cancel() {
-    if (!await confirmAction({ title: "Cancelar solicitação?", description: "Essa operação não pode ser desfeita.", confirmLabel: "Confirmar cancelamento", danger: true })) return;
+    const reason = await askReason({ title: "Cancelar solicitação?", description: "A solicitação deixa de seguir para o Coral e não poderá ser reaberta. Ela continua na sua lista e no histórico.", reasonLabel: "Motivo do cancelamento", reasonPlaceholder: "Ex.: solicitação duplicada, cliente desistiu.", confirmLabel: "Confirmar cancelamento", danger: true });
+    if (!reason) return;
     setBusy(true); setError(""); setSuccess("");
     try {
-      const response = await fetch(`/api/requests/${requestId}/cancel`, { method: "POST" });
+      const response = await fetch(`/api/requests/${requestId}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason }) });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error || "Não foi possível cancelar a solicitação.");
       router.push("/minhas-solicitacoes"); router.refresh();

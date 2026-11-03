@@ -4,7 +4,11 @@ export const batchJobStatusLabels: Record<string, string> = {
   PAUSED: "Pausada · aguardando continuação",
   COMPLETED: "Concluída",
   COMPLETED_WITH_ERRORS: "Concluída com pendências",
+  CANCELLED: "Cancelada",
 };
+
+/** Planilhas que ainda não estão processando podem ser canceladas; contratos já enviados ao Coral mantêm seu resultado. */
+export const CANCELLABLE_BATCH_STATUSES = ["READY", "PAUSED"];
 
 export const batchItemStatusLabels: Record<string, string> = {
   PENDING: "Aguardando execução",

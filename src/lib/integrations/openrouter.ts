@@ -17,6 +17,8 @@ export type DocumentComparison = {
   reservation?: ReservationCheck;
   /** Canal de venda informado no voucher (ex.: "Origem: RentalCars" na Confirmação de Reserva Foco). */
   voucherOrigin?: string | null;
+  /** Marcas e sites citados no voucher, exceto a Foco; cobre quando a IA lista o parceiro mas não preenche voucherOrigin. */
+  voucherBrands?: string[];
   confidence: number | null;
   identity: DocumentIdentity;
   fields: Array<{ name: string; voucherValue?: string; contractValue?: string; match: boolean | null; evidence?: string }>;

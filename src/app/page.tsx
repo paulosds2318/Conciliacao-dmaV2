@@ -21,12 +21,11 @@ export default async function HomePage() {
 
   const isAdmin = user.role === "admin";
   const scope = isAdmin ? {} : { requesterId: user.id };
-  const [total, pending, completed, archived, corrections, recent] = await Promise.all([
+  const [total, pending, completed, corrections, recent] = await Promise.all([
     db.dmaRequest.count({ where: scope }),
     db.dmaRequest.count({ where: { ...scope, status: "PENDING_REVIEW" } }),
     db.dmaRequest.count({ where: { ...scope, status: { in: ["EXECUTING", "COMPLETED", "EXECUTION_FAILED", "EXECUTION_UNCERTAIN"] } } }),
-    isAdmin ? db.dmaRequest.count({ where: { status: "ARCHIVED" } }) : Promise.resolve(0),
-    isAdmin ? Promise.resolve(0) : db.dmaRequest.count({ where: { ...scope, status: { in: ["REJECTED", "ANALYSIS_FAILED"] } } }),
+    db.dmaRequest.count({ where: { ...scope, status: { in: ["REJECTED", "ANALYSIS_FAILED"] } } }),
     db.dmaRequest.findMany({
       where: scope,
       orderBy: { updatedAt: "desc" },
@@ -46,7 +45,7 @@ export default async function HomePage() {
     ? [
         { label: "Aguardando aprovação", value: pending, detail: "Solicitações que precisam de decisão", href: "/analise" },
         { label: "Ações enviadas ao Coral", value: completed, detail: "Em andamento, concluídas ou com falha no processamento", href: "/analise" },
-        { label: "Arquivadas / excluídas", value: archived, detail: "Registros preservados para auditoria", href: "/analise" },
+        { label: "Devolvidas para correção", value: corrections, detail: "Recusadas ou com análise não concluída, aguardando o atendente", href: "/analise" },
       ]
     : [
         { label: "Minhas solicitações", value: total, detail: "Solicitações abertas por você", href: "/minhas-solicitacoes" },

@@ -13,19 +13,23 @@ export function getIdentityRejectionReasons(identity: DocumentIdentity, reservat
   return [...new Set(reasons)];
 }
 
-/** "RentalCars" / "Rentalcars.com", sem confundir com outras marcas como "Gotrentalcars". */
-export function isRentalcarsOrigin(origin: string | null | undefined) {
-  const normalized = origin?.toLowerCase().replace(/[^a-z]/g, "") ?? "";
-  return normalized === "rentalcars" || normalized === "rentalcarscom";
+/** Parceiros cujo voucher dispensa o administrador. Comparação exata, para não aceitar marcas parecidas como "Gotrentalcars" ou "RentingCarz". */
+const AUTO_APPROVAL_ORIGINS = new Set(["rentalcars", "rentalcarscom", "rentcars", "rentcarscom"]);
+export function isAutoApprovalOrigin(origin: string | null | undefined) {
+  return AUTO_APPROVAL_ORIGINS.has(origin?.toLowerCase().replace(/[^a-z]/g, "") ?? "");
 }
 
 /**
- * Voucher da Rentalcars dispensa a aprovação do administrador quando o contrato anexado é o validado no Coral
+ * Voucher da Rentalcars ou da Rentcars dispensa a aprovação do administrador quando o contrato anexado é o validado no Coral
  * e os dados do cliente conferem com o contrato: CPF ou nome iguais, sem nenhuma divergência (CPF, nome ou reserva).
  */
-export function isRentalcarsAutoApprovable(comparison: DocumentComparison) {
+export function isPartnerAutoApprovable(comparison: DocumentComparison) {
   const { identity, reservation, contractNumber } = comparison;
-  return isRentalcarsOrigin(comparison.voucherOrigin)
+  // Origem identificada manda; só sem origem vale um parceiro aceito entre as marcas citadas no voucher.
+  const partner = comparison.voucherOrigin
+    ? isAutoApprovalOrigin(comparison.voucherOrigin)
+    : (comparison.voucherBrands ?? []).some(isAutoApprovalOrigin);
+  return partner
     && contractNumber?.match === true
     && (identity.cpfMatch === true || identity.nameMatch === true)
     && identity.cpfMatch !== false && identity.nameMatch !== false && reservation?.match !== false;

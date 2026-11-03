@@ -1,5 +1,5 @@
 import { ACCEPTED_DOCUMENT_MIME_TYPES } from "@/lib/document-types";
-/** O atendente só edita/exclui solicitações devolvidas pela análise; na fila do administrador fica bloqueado. */
+/** O atendente só edita/cancela solicitações devolvidas pela análise; na fila do administrador fica bloqueado. */
 export const ATTENDANT_MANAGEABLE_STATUSES: readonly string[] = ["REJECTED", "ANALYSIS_FAILED"];
 export const REQUIRED_DOCUMENT_KINDS = ["VOUCHER", "CONTRACT"] as const;
 export type RequiredDocumentKind = typeof REQUIRED_DOCUMENT_KINDS[number];
