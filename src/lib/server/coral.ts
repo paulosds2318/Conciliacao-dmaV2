@@ -33,7 +33,7 @@ function coralAuthorization() {
   const username = process.env.CORAL_USERNAME;
   const password = process.env.CORAL_PASSWORD;
   if (!username || !password) throw new Error("Configure CORAL_AUTH_TOKEN ou CORAL_USERNAME/CORAL_PASSWORD para acessar o Coral.");
-  if (username.includes(":")) throw new Error("CORAL_USERNAME nao pode conter dois-pontos na autenticacao Basic.");
+  if (username.includes(":")) throw new Error("CORAL_USERNAME não pode conter dois-pontos na autenticação Basic.");
   return `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}`;
 }
 export async function lookupContract(number: string): Promise<ContractMatch | null> {

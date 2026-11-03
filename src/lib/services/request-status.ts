@@ -8,7 +8,6 @@ export const REQUEST_STATUS_LABELS = {
   EXECUTION_FAILED: "Falha ao executar ação no Coral",
   COMPLETED: "Ação concluída no Coral",
   CANCELLED: "Cancelada",
-  ARCHIVED: "Arquivada / excluída",
 } as const;
 
 export const REQUEST_STATUS = Object.keys(REQUEST_STATUS_LABELS) as (keyof typeof REQUEST_STATUS_LABELS)[];
@@ -24,7 +23,6 @@ export const TRANSITIONS: Record<RequestStatus, readonly RequestStatus[]> = {
   EXECUTION_FAILED: [],
   COMPLETED: [],
   CANCELLED: [],
-  ARCHIVED: [],
 };
 
 export function canTransition(from: RequestStatus, to: RequestStatus) {

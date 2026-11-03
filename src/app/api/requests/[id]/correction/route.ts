@@ -12,11 +12,11 @@ export const maxDuration = 150;
 type Context = { params: Promise<{ id: string }> };
 export async function POST(request: NextRequest, { params }: Context) {
   const user = await isAllowed(["attendant"]);
-  if (!user) return apiError("Nao autorizado.", 401);
+  if (!user) return apiError("Não autorizado.", 401);
   const { id } = await params;
   const item = await db.dmaRequest.findUnique({ where: { id } });
-  if (!item || item.requesterId !== user.id) return apiError("Solicitacao nao encontrada.", 404);
-  if (!["REJECTED", "ANALYSIS_FAILED"].includes(item.status)) return apiError("Esta solicitacao nao esta aguardando correcao.", 409);
+  if (!item || item.requesterId !== user.id) return apiError("Solicitação não encontrada.", 404);
+  if (!["REJECTED", "ANALYSIS_FAILED"].includes(item.status)) return apiError("Esta solicitação não está aguardando correção.", 409);
   const needsVoucher = requiresVoucher(item.actionType);
   const form = await request.formData(); const voucher = needsVoucher ? form.get("voucher") : null; const contract = form.get("contract"); const reason = form.get("reason");
   if (typeof reason !== "string" || !reason.trim()) return apiError("Informe o motivo da reabertura.");
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, { params }: Context) {
     if (accessError) return apiError(accessError, 403);
     let coral;
     try { coral = await lookupContract(newContractNumber); }
-    catch (error) { return apiError(error instanceof Error ? error.message : "Falha na validacao do Coral.", 502); }
+    catch (error) { return apiError(error instanceof Error ? error.message : "Falha na validação do Coral.", 502); }
     if (!coral) return apiError("Não encontramos o novo número de contrato no Coral. Confira o número informado.", 422);
     if (!coral.id) return apiError("O Coral não retornou o identificador interno do novo contrato. Não é possível reabrir com ele agora.", 422);
     const coralAccessError = await checkContractAccess(user, coral.number, coral.store);
@@ -51,5 +51,5 @@ export async function POST(request: NextRequest, { params }: Context) {
     ]);
     const analysis = await analyzeRequest(id, version, v?.storageKey ?? null, c.storageKey);
     return NextResponse.json({ status: analysis.ok ? analysis.status : "ANALYSIS_FAILED", error: analysis.ok ? null : analysis.error });
-  } catch (error) { await Promise.all(stored.map((x) => removeStoredPdf(x.storageKey))); return apiError(error instanceof Error ? error.message : "Falha ao corrigir solicitacao."); }
+  } catch (error) { await Promise.all(stored.map((x) => removeStoredPdf(x.storageKey))); return apiError(error instanceof Error ? error.message : "Falha ao corrigir a solicitação."); }
 }

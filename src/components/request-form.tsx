@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { FileAttachmentField } from "@/components/file-attachment-field";
 import { DOCUMENT_ACCEPT, DOCUMENT_FORMATS_LABEL } from "@/lib/document-types";
 import { requiresVoucher } from "@/lib/services/request-policy";
+import { createdFlashKey } from "@/lib/services/request-feedback";
 
 type Removal = { kind: string; fileName: string; confirmed: true };
 
@@ -49,13 +50,14 @@ export function RequestForm() {
     }
     if (!needsVoucher) data.delete("voucher");
     if (!valid) { setMessage("Valide o contrato no Coral antes de enviar."); return; }
-    if (!await confirmAction({ title: "Enviar solicitação?", description: needsVoucher ? "Os dois documentos serão analisados e a solicitação seguirá para decisão do administrador." : "O número do contrato anexado será conferido com o contrato validado no Coral e a solicitação seguirá para decisão do administrador.", confirmLabel: "Enviar para análise" })) return;
+    if (!await confirmAction({ title: "Enviar solicitação?", description: needsVoucher ? "Voucher e contrato serão conferidos pela análise automática. Se tudo conferir, segue para aprovação do administrador; vouchers Rentalcars e Rentcars com todos os dados conferidos são aprovados automaticamente." : "O número do contrato anexado será conferido com o contrato validado no Coral. Se conferir, segue para aprovação do administrador.", confirmLabel: "Enviar para análise" })) return;
     data.set("removedAttachments", JSON.stringify(removedAttachments));
     setBusy(true);
     try {
       const response = await fetch("/api/requests", { method: "POST", body: data });
       const result = await response.json();
       if (!response.ok && response.status !== 201) throw new Error(result.error);
+      try { window.sessionStorage.setItem(createdFlashKey(result.requestId), "1"); } catch { /* sem armazenamento: o detalhe abre sem a mensagem */ }
       router.push(`/solicitacoes/${result.requestId}`); router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Falha ao enviar solicitação.");
@@ -71,7 +73,7 @@ export function RequestForm() {
         <Link className="button secondary" href="/">Voltar</Link>
       </header>
       <section className="panel">
-        <div className="notice">Desconsiderar DMA exige voucher e contrato; Considerar DMA exige somente o contrato ({DOCUMENT_FORMATS_LABEL}). O administrador tomará a decisão final.</div>
+        <div className="notice">Desconsiderar DMA exige voucher e contrato; Considerar DMA exige somente o contrato ({DOCUMENT_FORMATS_LABEL}). O administrador decide, exceto vouchers Rentalcars e Rentcars com todos os dados conferidos, que são aprovados automaticamente.</div>
         <form className="request-form" onSubmit={submit}>
           <label className="filter-field">Ação desejada<select name="actionType" value={actionType} onChange={(event) => setActionType(event.target.value)} required><option value="" disabled>Selecione uma ação</option><option value="CONSIDERAR_DMA">Considerar DMA</option><option value="DESCONSIDERAR_DMA">Desconsiderar DMA</option></select></label>
           <label className="filter-field">Observações (opcional)<textarea name="observations" rows={4} maxLength={2000} placeholder="Inclua contexto ou detalhes importantes para a análise." /></label>

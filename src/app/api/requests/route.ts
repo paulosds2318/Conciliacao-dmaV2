@@ -10,13 +10,10 @@ import { createRequestSchema } from "@/lib/validators/request";
 import { requiresVoucher } from "@/lib/services/request-policy";
 import { checkContractAccess } from "@/lib/server/store-access";
 export const maxDuration = 150;
-export async function GET(request: Request) {
+export async function GET() {
   const user = await isAllowed(["attendant", "admin"]);
   if (!user) return apiError("Não autorizado.", 401);
-  const includeArchived = new URL(request.url).searchParams.get("includeArchived") === "true";
-  const where = user.role === "attendant"
-    ? { requesterId: user.id, ...(includeArchived ? {} : { status: { not: "ARCHIVED" } }) }
-    : includeArchived ? {} : { status: { not: "ARCHIVED" } };
+  const where = user.role === "attendant" ? { requesterId: user.id } : {};
   const requests = await db.dmaRequest.findMany({ where, orderBy: { updatedAt: "desc" }, include: { requester: { select: { id: true, name: true, email: true } }, analyses: { orderBy: { createdAt: "desc" }, take: 1 }, decisions: { orderBy: { createdAt: "desc" }, take: 1, include: { reviewer: { select: { name: true, email: true } } } }, auditEvents: { where: { event: { in: ["REQUEST_REOPENED", "REQUEST_ARCHIVED"] } }, orderBy: { createdAt: "desc" }, take: 10, include: { actor: { select: { id: true, name: true, email: true } } } }, _count: { select: { documents: true } } } });
   return NextResponse.json({ requests });
 }
@@ -34,7 +31,7 @@ export async function POST(request: NextRequest) {
   if (needsVoucher && (!(voucher instanceof File) || voucher.size === 0)) return apiError("Anexe o voucher e o contrato (PDF ou imagem). Os dois arquivos são obrigatórios para desconsiderar DMA.");
   let coral;
   try { coral = await lookupContract(parsed.data.contractName); }
-  catch (error) { return apiError(error instanceof Error ? error.message : "Falha na validacao do Coral.", 502); }
+  catch (error) { return apiError(error instanceof Error ? error.message : "Falha na validação do Coral.", 502); }
   if (!coral) return apiError("Não encontramos esse contrato no Coral. Confira o número informado ou confirme se ele existe.", 422);
   const coralAccessError = await checkContractAccess(user, coral.number, coral.store);
   if (coralAccessError) return apiError(coralAccessError, 403);

@@ -7,8 +7,8 @@ export function getIdentityRejectionReasons(identity: DocumentIdentity, reservat
   const reasons: string[] = [];
   for (const [key, label] of [["voucher", "voucher"], ["contract", "contrato"]] as const) {
     const data = identity[key];
-    if (!data.name?.trim()) reasons.push(`Nome do cliente ausente ou ilegivel no ${label}.`);
-    if (!data.cpf?.trim()) reasons.push(`CPF do cliente ausente ou ilegivel no ${label}.`);
+    if (!data.name?.trim()) reasons.push(`Nome do cliente ausente ou ilegível no ${label}.`);
+    if (!data.cpf?.trim()) reasons.push(`CPF do cliente ausente ou ilegível no ${label}.`);
   }
   return [...new Set(reasons)];
 }
@@ -36,7 +36,7 @@ export function isPartnerAutoApprovable(comparison: DocumentComparison) {
 }
 
 export function getContractNumberRejectionReasons(check: ContractNumberCheck | undefined) {
-  if (!check?.found) return ["Numero do contrato nao localizado no contrato anexado. Confira se o arquivo e o contrato correto e esta legivel."];
-  if (check.match === false) return [`O contrato anexado e o ${check.found}, mas o contrato validado no Coral e o ${check.expected}. Anexe o contrato correto.`];
+  if (!check?.found) return ["Número do contrato não localizado no contrato anexado. Confira se o arquivo é o contrato correto e está legível."];
+  if (check.match === false) return [`O contrato anexado é o ${check.found}, mas o contrato validado no Coral é o ${check.expected}. Anexe o contrato correto.`];
   return [];
 }

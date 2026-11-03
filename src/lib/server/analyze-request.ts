@@ -15,7 +15,7 @@ export async function analyzeRequest(requestId: string, version: number, voucher
     const status = rejectionReasons.length ? "REJECTED" : "PENDING_REVIEW";
     const analysisStatus = rejectionReasons.length ? "AUTO_REJECTED" : "COMPLETED";
     const savedComparison = rejectionReasons.length
-      ? { ...comparison, summary: `Solicitacao recusada automaticamente pela validacao documental. Motivos: ${rejectionReasons.join(" ")}` }
+      ? { ...comparison, summary: `Solicitação recusada automaticamente pela validação documental. Motivos: ${rejectionReasons.join(" ")}` }
       : comparison;
 
     await db.$transaction(async (tx) => {
@@ -28,7 +28,7 @@ export async function analyzeRequest(requestId: string, version: number, voucher
     });
     analyzed = { status, comparison: savedComparison, rejectionReasons, autoApprove: !!voucher && !rejectionReasons.length && isPartnerAutoApprovable(comparison) };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Falha na analise documental.";
+    const message = error instanceof Error ? error.message : "Falha na análise documental.";
     await db.$transaction([
       db.aiAnalysis.create({ data: { requestId, requestVersion: version, provider: "openrouter", model: process.env.OPENROUTER_MODEL || "unknown", status: "FAILED", errorCode: message.slice(0, 200) } }),
       db.dmaRequest.update({ where: { id: requestId }, data: { status: "ANALYSIS_FAILED" } }),

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { useConfirmation } from "@/components/confirmation-provider";
+import { submissionFeedback } from "@/lib/services/request-feedback";
 
 type RequestSnapshot = { status: string; requester: { id: string } };
 type SessionUser = { id?: string; role?: string };
@@ -37,22 +38,16 @@ export function RetryAnalysisControl() {
   if (!user || !request || request.status !== "ANALYSIS_FAILED" || (!admin && (user.role !== "attendant" || request.requester.id !== user.id))) return null;
 
   async function retry() {
-    if (!await confirmAction({ title: "Tentar a análise novamente?", description: "Os documentos já enviados serão analisados novamente. Se a verificação for concluída, a solicitação seguirá para aprovação do administrador.", confirmLabel: "Tentar novamente" })) return;
+    if (!await confirmAction({ title: "Tentar a análise novamente?", description: "Os documentos já enviados serão analisados novamente. Se tudo conferir, segue para aprovação do administrador; vouchers Rentalcars e Rentcars com todos os dados conferidos são aprovados automaticamente.", confirmLabel: "Tentar novamente" })) return;
     setBusy(true); setError(""); setSuccess("");
     const requestId = window.location.pathname.split("/").at(-1);
     try {
       const response = await fetch(`/api/requests/${requestId}/reanalyze`, { method: "POST" });
       const data = await response.json() as { error?: string; status?: string };
       if (!response.ok) throw new Error(data.error || "Não foi possível iniciar uma nova análise.");
-      if (data.status === "PENDING_REVIEW") {
-        setSuccess("Análise concluída. Status: aguardando aprovação do administrador.");
-        window.setTimeout(() => window.location.reload(), 1200);
-      } else if (data.status === "REJECTED") {
-        setSuccess("A análise foi concluída, mas encontrou divergências. Consulte o motivo na solicitação.");
-        router.refresh();
-      } else {
-        setSuccess("A análise não foi concluída. Consulte o detalhe e tente novamente após corrigir o problema.");
-      }
+      setSuccess(submissionFeedback("retried", data.status));
+      if (data.status === "ANALYSIS_FAILED") router.refresh();
+      else window.setTimeout(() => window.location.reload(), 1500);
       setRequest((current) => current ? { ...current, status: data.status || current.status } : current);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível tentar a análise novamente.");

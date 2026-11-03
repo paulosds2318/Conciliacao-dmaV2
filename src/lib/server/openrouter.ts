@@ -92,10 +92,10 @@ function makeIdentity(raw: unknown): DocumentIdentity {
 export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Array, expectedContractNumber: string): Promise<DocumentComparison> {
   const key = process.env.OPENROUTER_API_KEY;
   const model = process.env.OPENROUTER_MODEL;
-  if (!key || !model) throw new Error("Configure OPENROUTER_API_KEY e OPENROUTER_MODEL para analise documental.");
+  if (!key || !model) throw new Error("Configure OPENROUTER_API_KEY e OPENROUTER_MODEL para a análise documental.");
   const toPart = (bytes: Uint8Array, filename: string) => {
     const mimeType = detectDocumentType(bytes);
-    if (!mimeType) throw new Error(`Formato de arquivo nao suportado em ${filename}.`);
+    if (!mimeType) throw new Error(`Formato de arquivo não suportado em ${filename}.`);
     const data = `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;
     return mimeType === "application/pdf"
       ? { type: "file", file: { filename: `${filename}.pdf`, file_data: data } }
@@ -130,17 +130,17 @@ export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Arr
   const choice = body.choices?.[0];
   const content = choice?.message?.content;
   const text = typeof content === "string" ? content : content?.map((part) => part.text || "").join("") || "";
-  if (!text.trim()) throw new Error("IA_RESPOSTA_VAZIA: o OpenRouter nao retornou conteudo na analise.");
+  if (!text.trim()) throw new Error("IA_RESPOSTA_VAZIA: o OpenRouter não retornou conteúdo na análise.");
   let parsed: unknown;
   try {
     parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
   } catch (error) {
-    const detail = error instanceof Error ? error.message : "JSON invalido";
+    const detail = error instanceof Error ? error.message : "JSON inválido";
     if (choice?.finish_reason === "length") throw new Error(`IA_RESPOSTA_CORTADA: a resposta da IA ultrapassou o limite de tamanho e veio incompleta (${detail}).`);
-    throw new Error(`IA_RESPOSTA_INVALIDA: a resposta da IA nao estava em JSON valido (${detail}).`);
+    throw new Error(`IA_RESPOSTA_INVALIDA: a resposta da IA não estava em JSON válido (${detail}).`);
   }
   const json = asObject(parsed);
-  if (typeof json.summary !== "string") throw new Error("IA_RESPOSTA_INVALIDA: OpenRouter retornou uma analise em formato invalido.");
+  if (typeof json.summary !== "string") throw new Error("IA_RESPOSTA_INVALIDA: OpenRouter retornou uma análise em formato inválido.");
 
   const identity = makeIdentity(json.identity);
   const suppliedFields = Array.isArray(json.fields) ? json.fields.map(asObject) : [];

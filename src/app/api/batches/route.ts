@@ -3,11 +3,10 @@ import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
 import { MAX_SPREADSHEET_ROWS, readSpreadsheet } from "@/lib/server/spreadsheet";
-export async function GET(request: NextRequest) {
+export async function GET() {
   const user = await isAllowed(["admin"]);
   if (!user) return apiError("Não autorizado.", 401);
-  const includeArchived = request.nextUrl.searchParams.get("includeArchived") === "true";
-  const jobs = await db.bulkActionJob.findMany({ where: { deletedAt: includeArchived ? { not: null } : null }, orderBy: { createdAt: "desc" }, include: { requester: { select: { name: true } }, _count: { select: { items: true } } } });
+  const jobs = await db.bulkActionJob.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, include: { requester: { select: { name: true } }, _count: { select: { items: true } } } });
   return NextResponse.json({ jobs });
 }
 export async function POST(request: NextRequest) {

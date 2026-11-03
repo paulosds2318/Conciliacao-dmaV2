@@ -43,9 +43,9 @@ export default async function HomePage() {
 
   const metrics = isAdmin
     ? [
-        { label: "Aguardando aprovação", value: pending, detail: "Solicitações que precisam de decisão", href: "/analise" },
-        { label: "Ações enviadas ao Coral", value: completed, detail: "Em andamento, concluídas ou com falha no processamento", href: "/analise" },
-        { label: "Devolvidas para correção", value: corrections, detail: "Recusadas ou com análise não concluída, aguardando o atendente", href: "/analise" },
+        { label: "Aguardando aprovação", value: pending, detail: "Solicitações que precisam de decisão", href: "/analise?aba=pendentes" },
+        { label: "Ações enviadas ao Coral", value: completed, detail: "Em andamento, concluídas ou com falha no processamento", href: "/analise?aba=aprovadas" },
+        { label: "Devolvidas para correção", value: corrections, detail: "Recusadas ou com análise não concluída, aguardando o atendente", href: "/analise?aba=devolvidas" },
       ]
     : [
         { label: "Minhas solicitações", value: total, detail: "Solicitações abertas por você", href: "/minhas-solicitacoes" },
