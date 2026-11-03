@@ -15,6 +15,8 @@ export type DocumentComparison = {
   matches: boolean | null;
   contractNumber?: ContractNumberCheck;
   reservation?: ReservationCheck;
+  /** Canal de venda informado no voucher (ex.: "Origem: RentalCars" na Confirmação de Reserva Foco). */
+  voucherOrigin?: string | null;
   confidence: number | null;
   identity: DocumentIdentity;
   fields: Array<{ name: string; voucherValue?: string; contractValue?: string; match: boolean | null; evidence?: string }>;

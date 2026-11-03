@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
-import { applyDmaEligibility } from "@/lib/server/coral";
+import { executeApprovedRequest } from "@/lib/server/execute-request";
 import { reviewDecisionSchema } from "@/lib/validators/request";
 type Context = { params: Promise<{ id: string }> };
 export async function POST(request: NextRequest, { params }: Context) {
@@ -27,33 +27,8 @@ export async function POST(request: NextRequest, { params }: Context) {
     return NextResponse.json({ status: "REJECTED" });
   }
   if (!item.coralContractId) return apiError("O Coral não retornou o identificador interno deste contrato. A solicitação não pode ser executada; valide o contrato novamente e reenvie.", 409);
-  const attemptId = crypto.randomUUID(); const idempotencyKey = crypto.randomUUID();
-  try {
-    await db.$transaction(async (tx) => {
-      const changed = await tx.dmaRequest.updateMany({ where: { id, version: item.version, status: "PENDING_REVIEW" }, data: { status: "EXECUTING" } });
-      if (!changed.count) throw new Error("A solicitação já recebeu uma decisão.");
-      await tx.reviewDecision.create({ data: { requestId: id, reviewerId: reviewer.id, requestVersion: item.version, decision: "APPROVE", justification: parsed.data.justification || null } });
-      await tx.executionAttempt.create({ data: { id: attemptId, requestId: id, idempotencyKey, integration: "coral", status: "IN_PROGRESS" } });
-      await tx.auditEvent.create({ data: { requestId: id, actorId: reviewer.id, event: "REQUEST_APPROVED_EXECUTION_STARTED", details: { version: item.version, idempotencyKey } } });
-    });
-  } catch (error) { return apiError(error instanceof Error ? error.message : "A solicitação já recebeu uma decisão.", 409); }
-  try {
-    const result = await applyDmaEligibility(item.coralContractId, item.actionType as "CONSIDERAR_DMA" | "DESCONSIDERAR_DMA");
-    await db.$transaction([
-      db.executionAttempt.update({ where: { id: attemptId }, data: { status: result.status, response: result.response as never, completedAt: new Date() } }),
-      db.dmaRequest.update({ where: { id }, data: { status: "COMPLETED" } }),
-      db.auditEvent.create({ data: { requestId: id, actorId: reviewer.id, event: "CORAL_EXECUTION_COMPLETED", details: { status: result.status } } }),
-    ]);
-    return NextResponse.json({ status: "COMPLETED", execution: result.status });
-  } catch (error) {
-    const uncertain = !!(error && typeof error === "object" && "uncertain" in error && error.uncertain);
-    const response = error && typeof error === "object" && "response" in error ? error.response : undefined;
-    const status = uncertain ? "UNCERTAIN" : "FAILED";
-    await db.$transaction([
-      db.executionAttempt.update({ where: { id: attemptId }, data: { status, errorCode: error instanceof Error ? error.message.slice(0, 200) : "CORAL_ERROR", response: (response ?? undefined) as never, completedAt: new Date() } }),
-      db.dmaRequest.update({ where: { id }, data: { status: uncertain ? "EXECUTION_UNCERTAIN" : "EXECUTION_FAILED" } }),
-      db.auditEvent.create({ data: { requestId: id, actorId: reviewer.id, event: uncertain ? "CORAL_EXECUTION_UNCERTAIN" : "CORAL_EXECUTION_FAILED", details: { message: error instanceof Error ? error.message : "Falha" } } }),
-    ]);
-    return NextResponse.json({ status: uncertain ? "EXECUTION_UNCERTAIN" : "EXECUTION_FAILED", error: error instanceof Error ? error.message : "Falha na execução." }, { status: 502 });
-  }
+  let outcome;
+  try { outcome = await executeApprovedRequest({ id, version: item.version, actionType: item.actionType, coralContractId: item.coralContractId }, { actorId: reviewer.id, justification: parsed.data.justification }); }
+  catch (error) { return apiError(error instanceof Error ? error.message : "A solicitação já recebeu uma decisão.", 409); }
+  return NextResponse.json(outcome, { status: outcome.status === "COMPLETED" ? 200 : 502 });
 }

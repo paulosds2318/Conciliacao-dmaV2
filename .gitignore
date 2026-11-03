@@ -3,6 +3,5 @@ node_modules/
 out/
 build/
 .env*
-!.env.example
 *.tsbuildinfo
 private-uploads/

@@ -139,7 +139,7 @@ Os PDFs ficam no diretório `private-uploads` montado como volume da aplicação
 | `SEED_ATTENDANT_EMAIL`, `SEED_ATTENDANT_PASSWORD`, `SEED_ATTENDANT_STORES` | Credenciais opcionais para criar/atualizar um atendente e suas lojas (ex.: `SAO10,SAO11`) |
 | `FRAME_ANCESTORS` | Origens permitidas na diretiva de segurança `frame-ancestors` |
 
-O modelo completo está em [`.env.example`](.env.example). Nunca publique o arquivo `.env` nem inclua credenciais reais no repositório.
+Nunca publique o arquivo `.env` nem inclua credenciais reais no repositório.
 
 Em produção, a aplicação se recusa a iniciar sem `DATABASE_URL`, `BETTER_AUTH_SECRET` (mínimo de 32 caracteres) e `BETTER_AUTH_URL`.
 

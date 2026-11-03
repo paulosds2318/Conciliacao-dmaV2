@@ -109,9 +109,10 @@ export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Arr
     "Localize especificamente o nome completo do cliente/locatario principal e o CPF dessa mesma pessoa em cada documento.",
     "Vouchers podem estar em outros idiomas (ingles, espanhol, holandes, alemao, portugues de Portugal) e vir de parceiros como Discover Cars, Rentalcars, Booking.com, Decolar, Rentcars, Auto Europe ou EconomyBookings. Nesses casos o titular aparece como Main driver, Driver name, Conductor principal, Hoofdbestuurder, Hauptfahrer ou similar, e o documento costuma ser passaporte em vez de CPF: use esse nome e, se nao houver CPF, retorne cpf null (nunca coloque numero de passaporte no campo cpf).",
     "Localize tambem o codigo da reserva Foco no formato R seguido de 7 digitos, hifen e 2 digitos (ex.: R1531330-25). No voucher ele aparece como Voucher, Confirmation number, Supplier reference, res. nr. ou similar; no contrato aparece como Reserva. Copie em reservation.voucher e reservation.contract, ou null se nao houver.",
+    "Identifique a origem/canal de venda do voucher e copie em voucherOrigin: na Confirmacao de Reserva Foco ela aparece como Origem (ex.: Origem: RentalCars); em vouchers emitidos pelo parceiro, use o nome da empresa emissora como aparece no documento (ex.: Rentalcars.com, Gotrentalcars, Discover Cars). Sem voucher ou sem essa informacao, retorne null.",
     "No contrato, nao confunda o cliente/locatario principal com condutor adicional, fiador, atendente ou empresa. No voucher, identifique o titular/cliente associado a reserva.",
     "Copie o CPF exatamente como aparece, mantendo pontuacao quando houver. Nao invente, complete nem deduza nomes ou CPFs. Se estiver ausente, cortado ou ilegivel, retorne null.",
-    "Compare os CPFs e os nomes, sem ignorar divergencias. Retorne somente JSON valido neste formato: {matches:boolean|null,confidence:number|null,contractNumber:string|null,reservation:{voucher:string|null,contract:string|null},identity:{voucher:{name:string|null,cpf:string|null},contract:{name:string|null,cpf:string|null}},fields:[{name:string,voucherValue:string|null,contractValue:string|null,match:boolean|null,evidence:string}],summary:string}.",
+    "Compare os CPFs e os nomes, sem ignorar divergencias. Retorne somente JSON valido neste formato: {matches:boolean|null,confidence:number|null,contractNumber:string|null,voucherOrigin:string|null,reservation:{voucher:string|null,contract:string|null},identity:{voucher:{name:string|null,cpf:string|null},contract:{name:string|null,cpf:string|null}},fields:[{name:string,voucherValue:string|null,contractValue:string|null,match:boolean|null,evidence:string}],summary:string}.",
     "Inclua em fields as linhas CPF do cliente e Nome completo do cliente. Mantenha cada evidence com no maximo 150 caracteres e summary com no maximo 400 caracteres; nao transcreva trechos longos dos documentos. matches deve ser null se os documentos nao permitirem conclusao. A IA nao aprova a acao; a decisao final continua sendo do administrador.",
   ].join(" ");
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -164,6 +165,7 @@ export async function comparePdfs(voucher: Uint8Array | null, contract: Uint8Arr
     matches: contractNumber.match === false ? false : typeof json.matches === "boolean" ? json.matches : null,
     contractNumber,
     reservation,
+    voucherOrigin: voucher ? readText(json.voucherOrigin) : null,
     confidence: typeof json.confidence === "number" ? Math.max(0, Math.min(1, json.confidence)) : null,
     identity,
     fields,
