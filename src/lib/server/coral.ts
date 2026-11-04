@@ -1,5 +1,6 @@
 import type { DmaAction } from "@/lib/integrations/coral";
 import { parseStoreCode, type StoreCode } from "@/lib/stores";
+import { coralAuth, CoralAuthError, hasCoralCredentials } from "@/lib/server/coral-auth";
 
 export type ContractMatch = { number: string; id: string | null; displayName: string; store: StoreCode | null; raw: unknown };
 const STORE_KEY = /loja|store|branch|filial|agencia|agency|pickup|retirada/i;
@@ -34,46 +35,84 @@ function field(row: Record<string, unknown>, keys: string[]) {
   for (const k of keys) if (row[k] !== undefined && row[k] !== null) return String(row[k]);
   return "";
 }
-function coralAuthorization() {
-  const token = process.env.CORAL_AUTH_TOKEN?.trim();
-  if (token) return /^Bearer\s/i.test(token) ? token : `Bearer ${token}`;
-  const username = process.env.CORAL_USERNAME;
-  const password = process.env.CORAL_PASSWORD;
-  if (!username || !password) throw new Error("Configure CORAL_AUTH_TOKEN ou CORAL_USERNAME/CORAL_PASSWORD para acessar o Coral.");
-  if (username.includes(":")) throw new Error("CORAL_USERNAME não pode conter dois-pontos na autenticação Basic.");
-  return `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}`;
+type CoralResponse = { status: number; ok: boolean; text: string; body: unknown };
+/**
+ * Chamada autenticada ao Coral. Um 401 vem do gate, antes do handler: a requisição não foi executada,
+ * então renova o token e repete uma vez (vale também para o PUT de elegibilidade).
+ */
+async function coralFetch(url: string, init: { method?: string; body?: string; timeoutMs: number }): Promise<CoralResponse> {
+  const send = async (token: string): Promise<CoralResponse> => {
+    const response = await fetch(url, {
+      method: init.method ?? "GET",
+      headers: {
+        Accept: "application/json",
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        Authorization: `Bearer ${token}`,
+      },
+      body: init.body,
+      signal: AbortSignal.timeout(init.timeoutMs),
+      cache: "no-store",
+    });
+    const text = await response.text();
+    let body: unknown = null;
+    try {
+      body = JSON.parse(text) as unknown;
+    } catch {
+      /* resposta sem JSON */
+    }
+    if (body && typeof body === "object") coralAuth.adopt((body as Record<string, unknown>).token);
+    return { status: response.status, ok: response.ok, text, body };
+  };
+  let token = await coralAuth.getToken();
+  let result = await send(token);
+  if (result.status === 401) {
+    coralAuth.invalidate(token);
+    token = await coralAuth.getToken();
+    result = await send(token);
+  }
+  if (result.status === 401) {
+    console.error(`[coral] ${init.method ?? "GET"} ${new URL(url).pathname} recusado com 401 mesmo após renovar o token.`);
+    throw new CoralAuthError(
+      "UNAUTHORIZED",
+      "O Coral recusou a autenticação do Conciliação DMA. Avise o suporte para conferir o usuário de serviço.",
+    );
+  }
+  return result;
 }
 const CORAL_UNAVAILABLE =
   "Não foi possível falar com o Coral agora (sem resposta ou fora do ar). Tente novamente em instantes; se continuar, avise o administrador.";
 export async function lookupContract(number: string): Promise<ContractMatch | null> {
-  if (process.env.MODO_TESTE_API === "true" && !process.env.CORAL_AUTH_TOKEN?.trim())
+  if (process.env.MODO_TESTE_API === "true" && !hasCoralCredentials())
     return { number, id: number, displayName: `Contrato ${number} (simulacao)`, store: null, raw: { simulated: true } };
   const template = process.env.CORAL_CONTRACT_LOOKUP_URL || "https://servicescoral.aluguefoco.com.br/api/rentagreement/{CONTRATO}";
   const url = template.replace("{CONTRATO}", encodeURIComponent(number));
-  const authorization = coralAuthorization();
-  let response: Response;
+  let response: CoralResponse;
   try {
-    response = await fetch(url, {
-      headers: { Accept: "application/json", Authorization: authorization },
-      signal: AbortSignal.timeout(15000),
-      cache: "no-store",
-    });
-  } catch {
+    response = await coralFetch(url, { timeoutMs: 15000 });
+  } catch (error) {
+    if (error instanceof CoralAuthError && error.kind !== "UNAVAILABLE") throw error;
     throw new Error(CORAL_UNAVAILABLE);
   }
   if (response.status === 404) return null;
-  // Chave vencida ou sem permiss\u00e3o n\u00e3o \u00e9 problema do contrato: o atendente precisa saber que deve avisar o administrador.
-  if (response.status === 401 || response.status === 403)
-    throw new Error(
-      "A integra\u00e7\u00e3o com o Coral est\u00e1 sem acesso (chave vencida ou sem permiss\u00e3o). Avise o administrador; o contrato n\u00e3o foi verificado.",
+  // Falta de permissão não é problema do contrato (o gate responde 406; 403 mantido por segurança).
+  if (response.status === 406 || response.status === 403) {
+    console.error(
+      `[coral] consulta de contrato recusada com HTTP ${response.status}: o usuário de serviço não tem permissão de leitura de contratos.`,
     );
-  // O Coral responde HTTP 500 para contratos inexistentes, ent\u00e3o 5xx continua apontando primeiro para o n\u00famero.
+    throw Object.assign(
+      new Error(
+        "O usuário de serviço do Coral não tem permissão para consultar contratos. Avise o administrador; o contrato não foi verificado.",
+      ),
+      { uncertain: false },
+    );
+  }
+  // O Coral responde HTTP 500 para contratos inexistentes, então 5xx continua apontando primeiro para o número.
   if (response.status >= 500)
     throw new Error(
-      "N\u00e3o encontramos esse contrato no Coral. Confira o n\u00famero informado; se ele estiver certo e o erro persistir, avise o administrador.",
+      "Não encontramos esse contrato no Coral. Confira o número informado; se ele estiver certo e o erro persistir, avise o administrador.",
     );
   if (!response.ok) throw new Error(`O Coral recusou a consulta (HTTP ${response.status}). Avise o administrador.`);
-  const body: unknown = await response.json();
+  const body = response.body;
   const rows = candidates(body);
   const row =
     rows.find(
@@ -125,9 +164,6 @@ export async function applyDmaEligibility(rentAgreementId: string, action: DmaAc
   if (!rentAgreementId.trim())
     throw Object.assign(new Error("O Coral não forneceu o identificador interno do contrato."), { uncertain: false });
 
-  const token = process.env.CORAL_AUTH_TOKEN?.trim();
-  if (!token) throw Object.assign(new Error("Configure o token de autenticação do Coral para executar ações DMA."), { uncertain: false });
-  const authorization = /^Bearer\s/i.test(token) ? token : `Bearer ${token}`;
   const url = dmaEligibilityUrl();
   const payload = {
     action: action === "CONSIDERAR_DMA" ? "REGARD" : "DISREGARD",
@@ -135,31 +171,21 @@ export async function applyDmaEligibility(rentAgreementId: string, action: DmaAc
   };
 
   try {
-    const response = await fetch(url, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: authorization },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(20000),
-      cache: "no-store",
-    });
-    const responseText = await response.text();
-    let responseBody: unknown = {};
-    try {
-      responseBody = JSON.parse(responseText) as unknown;
-    } catch {
-      /* preserve the Coral response below */
-    }
+    const response = await coralFetch(url, { method: "PUT", body: JSON.stringify(payload), timeoutMs: 20000 });
+    const responseText = response.text;
+    const responseBody: unknown = response.body ?? {};
     const envelope = responseBody && typeof responseBody === "object" ? (responseBody as Record<string, unknown>) : {};
     const body =
       envelope.data && typeof envelope.data === "object" ? (envelope.data as DmaEligibilityResponse) : (envelope as DmaEligibilityResponse);
     const responseData = { httpStatus: response.status, body: responseBody };
 
     if (!response.ok) {
+      // O gate do Coral responde 406 quando falta a permissão da rota (403 mantido por segurança).
       const message =
-        response.status === 403
-          ? "O Coral recusou a ação. Verifique se o usuário tem a permissão BULK_UPDATE_DMA_ELIGIBILITY."
-          : response.status === 401 || (response.status === 400 && /access token/i.test(responseText))
-            ? "A integração com o Coral está sem acesso (chave vencida ou ausente). A ação não foi aplicada; renove a chave e tente novamente."
+        response.status === 406 || response.status === 403
+          ? "O usuário de serviço do Coral não tem a permissão BULK_UPDATE_DMA_ELIGIBILITY. A ação não foi aplicada; avise o administrador."
+          : response.status === 400 && /token/i.test(responseText)
+            ? "O Coral não recebeu a autenticação do Conciliação DMA. A ação não foi aplicada; avise o administrador."
             : `O Coral respondeu com HTTP ${response.status}.`;
       throw Object.assign(new Error(message), { uncertain: response.status >= 500, response: responseData });
     }

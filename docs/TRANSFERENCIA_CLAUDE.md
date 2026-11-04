@@ -102,8 +102,7 @@ Eventos são registrados em `AuditEvent` com tipo, data, ator e detalhes. Solici
 
 - Consulta de contrato: `CORAL_CONTRACT_LOOKUP_URL`, atualmente documentada como `https://servicescoral.aluguefoco.com.br/api/rentagreement/{CONTRATO}`.
 - Ação DMA: `PUT /api/rentagreement/dma/eligibility` (ou URL configurada), enviando `action` como `REGARD`/`DISREGARD` e `rentAgreementIds` com o identificador interno do contrato.
-- Autenticação da ação usa `CORAL_AUTH_TOKEN` como Bearer. O guia fornecido para o endpoint indica permissão `BULK_UPDATE_DMA_ELIGIBILITY` e validade de token de uma hora. A integração de produção precisa de estratégia para renovar/fornecer tokens; não presumir que um token copiado do navegador permaneça válido.
-- `CORAL_USERNAME` e `CORAL_PASSWORD` são uma alternativa para autenticação da consulta, não substituem automaticamente o token usado na ação DMA.
+- Autenticação no Coral: `src/lib/server/coral-auth.ts` faz login com o usuário de serviço (`CORAL_AUTH_LOGIN`/`CORAL_AUTH_PASSWORD`, do segredo `foco/office/apps`), guarda o token por 55 minutos e renova sozinho; em 401 faz novo login e repete a chamada uma vez. Detalhes e regras do gate em `docs/integracoes.md`. Não há token ou chave fixa.
 - `MODO_TESTE_API=true` simula a execução DMA. O `render.yaml` da demonstração define esse modo como ligado.
 - Erro HTTP 5xx pode significar resultado incerto; não repetir automaticamente ação que talvez já tenha sido aplicada.
 
@@ -144,7 +143,7 @@ Não foi encontrado `.env.example` na raiz durante a preparação deste document
 
 - Banco/autenticação: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`.
 - IA: `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`.
-- Coral: `CORAL_AUTH_TOKEN`, `CORAL_USERNAME`, `CORAL_PASSWORD`, `CORAL_CONTRACT_LOOKUP_URL`, `CORAL_DMA_ELIGIBILITY_URL`, `CORAL_API_URL` (alias legado).
+- Coral: `CORAL_AUTH_LOGIN`, `CORAL_AUTH_PASSWORD`, `CORAL_AUTH_URL` (opcional), `CORAL_CONTRACT_LOOKUP_URL`, `CORAL_DMA_ELIGIBILITY_URL`, `CORAL_API_URL` (alias legado).
 - Armazenamento: `DOCUMENT_STORAGE_PATH`, `MAX_PDF_SIZE_MB`, `NEXT_PUBLIC_MAX_PDF_SIZE_MB`.
 - Inicialização: `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ATTENDANT_EMAIL`, `SEED_ATTENDANT_PASSWORD`.
 - Outros: `MODO_TESTE_API`, `FRAME_ANCESTORS`, `RENDER_EXTERNAL_URL`, `PORT`, `HOSTNAME`, `NODE_ENV`.

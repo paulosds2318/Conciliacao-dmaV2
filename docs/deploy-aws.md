@@ -61,7 +61,7 @@ Segredos (Secrets Manager):
 | `DATABASE_URL` | `postgresql://USUARIO:SENHA@ENDPOINT-RDS:5432/conciliacao_dma?schema=public` |
 | `BETTER_AUTH_SECRET` | Aleatório, ≥ 32 caracteres (`openssl rand -base64 48`) |
 | `OPENROUTER_API_KEY` | Chave de produção do OpenRouter |
-| `CORAL_AUTH_TOKEN` | Chave fixa do usuário de serviço do Coral, com a permissão `BULK_UPDATE_DMA_ELIGIBILITY` |
+| `CORAL_AUTH_LOGIN`, `CORAL_AUTH_PASSWORD` | Usuário de serviço exclusivo do Coral, no segredo `foco/office/apps`. O app faz login e renova o token sozinho |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | Primeiro administrador (usados só no passo 5) |
 
 Configuração (texto simples):
@@ -90,15 +90,9 @@ Cada push na `master` gera uma imagem com a tag do commit e atualiza o serviço 
 
 **Banco de dados:** ao iniciar, o container roda `prisma migrate deploy` e só sobe a aplicação se as migrações forem aplicadas. Não é preciso rodar nada manualmente a cada deploy.
 
-## 5. Primeiro acesso (uma única vez)
+## 5. Primeiro acesso
 
-Depois do primeiro deploy, rode uma task avulsa com a mesma task definition, sobrescrevendo o comando:
-
-```
-node --experimental-strip-types prisma/seed.ts
-```
-
-Ela cria (ou atualiza) o administrador definido em `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`. Os demais usuários são criados pela tela **Gestão de usuários**, onde cada atendente recebe as lojas que pode consultar.
+O próprio deploy cria o primeiro administrador, sem task avulsa. Com `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD` definidos na task (a senha pelo Secrets Manager), o `docker-entrypoint.sh` roda `prisma/seed.ts --if-missing` depois das migrações, a cada subida. O seed só cria contas que ainda não existem; uma conta existente não é alterada, então trocar a senha na variável não muda a senha do admin. Se o seed falhar, a task não sobe. O log mostra `[seed] Usuário criado` na primeira subida e `[seed] Usuário já existe, mantido sem alterações` nas seguintes. Os demais usuários são criados pela tela **Gestão de usuários**, onde cada atendente recebe as lojas que pode consultar.
 
 ## 6. Verificação após o deploy
 
@@ -118,6 +112,7 @@ No ECS, atualize o serviço para a revisão anterior da task definition (ou reex
 
 ## Pendências fora do código
 
+- **Usuário de serviço do Coral.** Criar um usuário exclusivo com `BULK_UPDATE_DMA_ELIGIBILITY` e uma permissão de leitura de contrato, sem MFA e com o primeiro acesso concluído. O Coral aceita um token ativo por usuário: não use esse login em nenhum outro lugar.
 - **Endpoint de DMA em produção:** `PUT /api/rentagreement/dma/eligibility` está validado em homologação e precisa ser publicado em `servicescoral.aluguefoco.com.br`.
 - **Liberação de IP:** se o Coral de produção restringir por IP, liberar o IP elástico do NAT Gateway.
 - **LGPD:** os documentos são enviados ao OpenRouter para leitura. Confirmar a aprovação da área responsável.
