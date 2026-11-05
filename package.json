@@ -10,7 +10,7 @@
         "lint": "eslint .",
         "format": "prettier --write src",
         "format:check": "prettier --check src",
-        "test": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
+        "test": "node --experimental-strip-types --no-warnings --import ./test/support/register-alias.mjs --test \"src/**/*.test.ts\"",
         "db:generate": "prisma generate",
         "db:seed": "prisma db seed",
         "db:push": "prisma db push",

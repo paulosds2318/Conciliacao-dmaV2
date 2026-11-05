@@ -70,10 +70,9 @@ BETTER_AUTH_URL="http://localhost:3000"
 OPENROUTER_API_KEY=""
 OPENROUTER_MODEL=""
 
-# Coral: use CORAL_AUTH_TOKEN ou CORAL_USERNAME e CORAL_PASSWORD
-CORAL_AUTH_TOKEN=""
-CORAL_USERNAME=""
-CORAL_PASSWORD=""
+# Coral: login e senha do usuário de serviço (o app faz login e renova o token sozinho).
+CORAL_AUTH_LOGIN=""
+CORAL_AUTH_PASSWORD=""
 CORAL_CONTRACT_LOOKUP_URL="https://servicescoral.aluguefoco.com.br/api/rentagreement/{CONTRATO}"
 CORAL_DMA_ELIGIBILITY_URL="https://servicescoral.aluguefoco.com.br/api/rentagreement/dma/eligibility"
 CORAL_API_URL=""
@@ -101,7 +100,7 @@ npm run dev
 
 Abra [http://localhost:3000](http://localhost:3000).
 
-O seed aceita os pares `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` e `SEED_ATTENDANT_EMAIL`/`SEED_ATTENDANT_PASSWORD`. Para cada perfil, informe e-mail e senha. O seed atualiza o nome, o perfil e a senha de uma conta existente com o mesmo e-mail.
+O seed aceita os pares `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` e `SEED_ATTENDANT_EMAIL`/`SEED_ATTENDANT_PASSWORD`. Para cada perfil, informe e-mail e senha. `npm run db:seed` atualiza o nome, o perfil e a senha de uma conta existente com o mesmo e-mail. No container, o `docker-entrypoint.sh` roda o seed a cada subida com `--if-missing`, quando as variáveis estão definidas: só cria contas que ainda não existem e não altera as existentes.
 
 ## Executar com Docker Compose
 
@@ -124,8 +123,8 @@ Os PDFs ficam no diretório `private-uploads` montado como volume da aplicação
 | `BETTER_AUTH_URL` | URL pública da aplicação |
 | `OPENROUTER_API_KEY` | Chave privada do OpenRouter |
 | `OPENROUTER_MODEL` | Modelo configurado para receber e analisar PDFs |
-| `CORAL_AUTH_TOKEN` | Token Coral; se não tiver prefixo, o sistema adiciona `Bearer` |
-| `CORAL_USERNAME`, `CORAL_PASSWORD` | Alternativa de autenticação Coral via HTTP Basic |
+| `CORAL_AUTH_LOGIN`, `CORAL_AUTH_PASSWORD` | Usuário de serviço do Coral. O app faz `POST /api/auth/login`, guarda o token em memória por 55 minutos e renova sozinho. Em produção vêm do segredo `foco/office/apps` |
+| `CORAL_AUTH_URL` | Opcional. Rota de login; se omitida, usa o host de `CORAL_CONTRACT_LOOKUP_URL` + `/api/auth/login` |
 | `CORAL_CONTRACT_LOOKUP_URL` | URL de consulta; deve conter o marcador `{CONTRATO}` |
 | `CORAL_DMA_ELIGIBILITY_URL` | Endpoint `PUT` usado após aprovação para considerar/desconsiderar DMA; se omitido, usa o domínio de `CORAL_CONTRACT_LOOKUP_URL` |
 | `CORAL_API_URL` | Alias para `CORAL_DMA_ELIGIBILITY_URL`; se não houver a variável nova, também aponta para o endpoint de ações DMA |
@@ -150,9 +149,11 @@ O passo a passo, com a infraestrutura necessária, está em [docs/deploy-aws.md]
 
 ## Integrações e limitações
 
-- Aprovações e ações manuais enviam `PUT /api/rentagreement/dma/eligibility` com `action` (`REGARD`/`DISREGARD`) e o ID interno do contrato Coral. O token Bearer precisa ter a permissão `BULK_UPDATE_DMA_ELIGIBILITY` e, conforme o guia Coral, expira em uma hora.
+- Aprovações e ações manuais enviam `PUT /api/rentagreement/dma/eligibility` com `action` (`REGARD`/`DISREGARD`) e o ID interno do contrato Coral. O usuário de serviço precisa da permissão `BULK_UPDATE_DMA_ELIGIBILITY` e de uma permissão de leitura de contrato (ex.: `RENT_AGREEMENT_VIEW_RENT_AGREEMENT`).
+- O Coral aceita um único token ativo por usuário: cada login invalida o anterior. Use o usuário de serviço só neste app. Se o token for invalidado, o app recebe 401, faz novo login e repete a chamada uma vez (o 401 é dado antes de a ação ser executada).
+- Senha recusada pelo login bloqueia novas tentativas por 5 minutos, para o foco-auth não desativar o usuário por excesso de tentativas. O app também faz login a cada 24 horas, para o usuário não ser desativado por falta de uso.
 - Se o Coral responder sem atualizar o contrato, a solicitação fica como falha; erros com resultado incerto não são reenviados automaticamente. Revise o histórico antes de tentar novamente.
-- Respostas HTTP de erro na consulta Coral são apresentadas ao usuário como contrato não encontrado. Se a API estiver indisponível ou a autenticação falhar, confirme a causa nos logs do serviço antes de concluir que o contrato não existe.
+- Na consulta Coral, só o HTTP 404 é apresentado como contrato não encontrado. Falhas de autenticação, de permissão ou de disponibilidade aparecem com mensagem própria e são registradas no log com o prefixo `[coral]` ou `[coral-auth]`.
 - A chave e o modelo do OpenRouter precisam estar configurados para a análise automática. Sem eles, a solicitação não completa a comparação documental.
 - A ação DMA por planilha registra resultados e não repete automaticamente execuções cujo resultado seja incerto.
 - Em produção, use armazenamento persistente e banco gerenciado com política de backup e retenção. O volume local do Compose não substitui uma estratégia de backup.
@@ -164,6 +165,7 @@ O passo a passo, com a infraestrutura necessária, está em [docs/deploy-aws.md]
 npm run dev
 npm run build
 npm run lint
+npm test                    # testes unitários (node:test), inclusive o cliente Coral
 npm run db:generate
 npm run db:migrate          # cria uma nova migração após alterar prisma/schema.prisma
 npm run db:migrate:deploy   # aplica as migrações pendentes (o container faz isso ao iniciar)
