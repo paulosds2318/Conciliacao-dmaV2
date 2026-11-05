@@ -157,9 +157,9 @@ export async function comparePdfs(
       body: JSON.stringify({
         model,
         temperature: 0,
-        max_tokens: 4000,
-        // Raciocínio longo consome o limite de tokens e a resposta pode chegar vazia.
-        reasoning: { effort: "low", exclude: true },
+        max_tokens: 16000,
+        // O raciocínio consome o limite de tokens e a resposta chegava vazia ou cortada; a extração não precisa dele.
+        reasoning: { enabled: false },
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -184,28 +184,30 @@ export async function comparePdfs(
     provider?: string;
     choices?: Array<{ finish_reason?: string; message?: { content?: string | Array<{ text?: string }> } }>;
   };
-  let choice: NonNullable<Completion["choices"]>[number] | undefined;
-  let text = "";
-  let emptyDetail = "";
-  // Resposta vazia costuma ser instabilidade do provedor da vez; uma nova tentativa normalmente resolve.
-  for (let attempt = 1; attempt <= 2 && !text.trim(); attempt++) {
+  let parsed: unknown;
+  // Resposta vazia ou cortada costuma ser instabilidade do provedor da vez; uma nova tentativa normalmente resolve.
+  for (let attempt = 1; ; attempt++) {
     const response = await request();
     if (!response.ok) throw new Error(`OpenRouter respondeu com HTTP ${response.status}.`);
     const body = (await response.json()) as Completion;
-    choice = body.choices?.[0];
+    const choice = body.choices?.[0];
     const content = choice?.message?.content;
-    text = typeof content === "string" ? content : content?.map((part) => part.text || "").join("") || "";
-    emptyDetail = `modelo ${model}, provedor ${body.provider || "?"}, término ${choice?.finish_reason || "?"}`;
-  }
-  if (!text.trim()) throw new Error(`IA_RESPOSTA_VAZIA: o OpenRouter não retornou conteúdo na análise (${emptyDetail}).`);
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : "JSON inválido";
-    if (choice?.finish_reason === "length")
-      throw new Error(`IA_RESPOSTA_CORTADA: a resposta da IA ultrapassou o limite de tamanho e veio incompleta (${detail}).`);
-    throw new Error(`IA_RESPOSTA_INVALIDA: a resposta da IA não estava em JSON válido (${detail}).`);
+    const text = typeof content === "string" ? content : content?.map((part) => part.text || "").join("") || "";
+    const where = `modelo ${model}, provedor ${body.provider || "?"}, término ${choice?.finish_reason || "?"}`;
+    try {
+      if (!text.trim()) throw new Error(`IA_RESPOSTA_VAZIA: o OpenRouter não retornou conteúdo na análise (${where}).`);
+      try {
+        parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "JSON inválido";
+        if (choice?.finish_reason === "length")
+          throw new Error(`IA_RESPOSTA_CORTADA: a resposta da IA ultrapassou o limite de tamanho e veio incompleta (${detail}; ${where}).`);
+        throw new Error(`IA_RESPOSTA_INVALIDA: a resposta da IA não estava em JSON válido (${detail}; ${where}).`);
+      }
+      break;
+    } catch (error) {
+      if (attempt >= 2) throw error;
+    }
   }
   const json = asObject(parsed);
   if (typeof json.summary !== "string") throw new Error("IA_RESPOSTA_INVALIDA: OpenRouter retornou uma análise em formato inválido.");
