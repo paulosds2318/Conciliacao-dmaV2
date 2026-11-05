@@ -114,8 +114,14 @@ export async function comparePdfs(
   contract: Uint8Array,
   expectedContractNumber: string,
 ): Promise<DocumentComparison> {
-  const key = process.env.OPENROUTER_API_KEY;
-  const model = process.env.OPENROUTER_MODEL;
+  // Valores colados com aspas ou espaços no painel da AWS fazem o OpenRouter recusar a chamada.
+  const cleanEnv = (value: string | undefined) =>
+    value
+      ?.trim()
+      .replace(/^["']|["']$/g, "")
+      .trim();
+  const key = cleanEnv(process.env.OPENROUTER_API_KEY);
+  const model = cleanEnv(process.env.OPENROUTER_MODEL);
   if (!key || !model) throw new Error("Configure OPENROUTER_API_KEY e OPENROUTER_MODEL para a análise documental.");
   const toPart = (bytes: Uint8Array, filename: string) => {
     const mimeType = detectDocumentType(bytes);
@@ -139,46 +145,59 @@ export async function comparePdfs(
     "Compare os CPFs e os nomes, sem ignorar divergencias. Retorne somente JSON valido neste formato: {matches:boolean|null,confidence:number|null,contractNumber:string|null,voucherOrigin:string|null,voucherBrands:string[],reservation:{voucher:string|null,contract:string|null},identity:{voucher:{name:string|null,cpf:string|null},contract:{name:string|null,cpf:string|null}},fields:[{name:string,voucherValue:string|null,contractValue:string|null,match:boolean|null,evidence:string}],summary:string}.",
     "Inclua em fields as linhas CPF do cliente e Nome completo do cliente. Mantenha cada evidence com no maximo 150 caracteres e summary com no maximo 400 caracteres; nao transcreva trechos longos dos documentos. matches deve ser null se os documentos nao permitirem conclusao. A IA nao aprova a acao; a decisao final continua sendo do administrador.",
   ].join(" ");
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.BETTER_AUTH_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000",
-      "X-Title": "Conciliacao DMA",
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0,
-      max_tokens: 4000,
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: voucher
-                ? "Leia os dados de identidade do cliente nos dois arquivos e cruze voucher com contrato."
-                : "Leia o numero do contrato e os dados de identidade do cliente no contrato anexado.",
-            },
-            ...(voucher ? [toPart(voucher, "voucher")] : []),
-            toPart(contract, "contrato"),
-          ],
-        },
-      ],
-    }),
-    signal: AbortSignal.timeout(120000),
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`OpenRouter respondeu com HTTP ${response.status}.`);
-  const body = (await response.json()) as {
+  const request = () =>
+    fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.BETTER_AUTH_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000",
+        "X-Title": "Conciliacao DMA",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0,
+        max_tokens: 4000,
+        // Raciocínio longo consome o limite de tokens e a resposta pode chegar vazia.
+        reasoning: { effort: "low", exclude: true },
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: voucher
+                  ? "Leia os dados de identidade do cliente nos dois arquivos e cruze voucher com contrato."
+                  : "Leia o numero do contrato e os dados de identidade do cliente no contrato anexado.",
+              },
+              ...(voucher ? [toPart(voucher, "voucher")] : []),
+              toPart(contract, "contrato"),
+            ],
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(120000),
+      cache: "no-store",
+    });
+  type Completion = {
+    provider?: string;
     choices?: Array<{ finish_reason?: string; message?: { content?: string | Array<{ text?: string }> } }>;
   };
-  const choice = body.choices?.[0];
-  const content = choice?.message?.content;
-  const text = typeof content === "string" ? content : content?.map((part) => part.text || "").join("") || "";
-  if (!text.trim()) throw new Error("IA_RESPOSTA_VAZIA: o OpenRouter não retornou conteúdo na análise.");
+  let choice: NonNullable<Completion["choices"]>[number] | undefined;
+  let text = "";
+  let emptyDetail = "";
+  // Resposta vazia costuma ser instabilidade do provedor da vez; uma nova tentativa normalmente resolve.
+  for (let attempt = 1; attempt <= 2 && !text.trim(); attempt++) {
+    const response = await request();
+    if (!response.ok) throw new Error(`OpenRouter respondeu com HTTP ${response.status}.`);
+    const body = (await response.json()) as Completion;
+    choice = body.choices?.[0];
+    const content = choice?.message?.content;
+    text = typeof content === "string" ? content : content?.map((part) => part.text || "").join("") || "";
+    emptyDetail = `modelo ${model}, provedor ${body.provider || "?"}, término ${choice?.finish_reason || "?"}`;
+  }
+  if (!text.trim()) throw new Error(`IA_RESPOSTA_VAZIA: o OpenRouter não retornou conteúdo na análise (${emptyDetail}).`);
   let parsed: unknown;
   try {
     parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
