@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { personName } from "@/lib/person-name";
 import { useConfirmation } from "@/components/confirmation-provider";
 import { RefreshPageButton } from "@/components/refresh-page-button";
-import { STORES } from "@/lib/stores";
+import { STORES, storeLabel } from "@/lib/stores";
 type AppRole = "admin" | "attendant";
 type UserRow = { id: string; name: string; email: string; role: AppRole; banned: boolean | null; stores: string[]; createdAt: string };
 function toggleStore(list: string[], store: string) {
@@ -25,7 +25,7 @@ function StorePicker({ value, onChange, disabled }: { value: string[]; onChange:
         {STORES.map((store) => (
           <label key={store} className="store-option">
             <input type="checkbox" checked={value.includes(store)} onChange={() => onChange(toggleStore(value, store))} />
-            {store}
+            {storeLabel(store)}
           </label>
         ))}
       </div>
@@ -87,7 +87,7 @@ export function UserManagement() {
     if (
       !(await confirmAction({
         title: "Criar usuário?",
-        description: `O usuário ${name.trim()} será criado com o perfil ${roleLabels[role]}${role === "attendant" ? ` e acesso às lojas ${stores.join(", ")}` : " e acesso a todas as lojas"}.`,
+        description: `O usuário ${name.trim()} será criado com o perfil ${roleLabels[role]}${role === "attendant" ? ` e acesso às lojas ${stores.map(storeLabel).join(", ")}` : " e acesso a todas as lojas"}.`,
         confirmLabel: "Criar usuário",
       }))
     )
@@ -290,7 +290,7 @@ export function UserManagement() {
                       ) : (
                         <>
                           <span className="subcell">
-                            {user.stores.length ? user.stores.join(", ") : "Nenhuma loja (sem acesso a contratos)"}
+                            {user.stores.length ? user.stores.map(storeLabel).join(", ") : "Nenhuma loja (sem acesso a contratos)"}
                           </span>{" "}
                           <button
                             className="button secondary"

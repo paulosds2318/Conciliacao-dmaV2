@@ -29,9 +29,17 @@ export const STORES = [
 ] as const;
 export type StoreCode = (typeof STORES)[number];
 
+/** As duas lojas de São Paulo têm o mesmo prefixo; o aeroporto diferencia uma da outra. */
+const STORE_NAMES: Partial<Record<string, string>> = { SAO10: "GRU", SAO11: "CGH" };
+
+/** Sigla para exibição (ex.: "SAO10 - GRU"). */
+export function storeLabel(store: string) {
+  return STORE_NAMES[store] ? `${store} - ${STORE_NAMES[store]}` : store;
+}
+
 const STORE_PATTERN = /\b([A-Z]{3}\d{2})\b/;
 
-/** Lojas possíveis para o contrato pelo prefixo de 3 letras. SAO pode ser SAO10 ou SAO11. */
+/** Lojas possíveis para o contrato pelo prefixo de 3 letras. SAO pode ser SAO10 (GRU) ou SAO11 (CGH). */
 export function contractStores(contractNumber: string): StoreCode[] {
   const prefix = contractNumber
     .trim()
@@ -64,5 +72,5 @@ export function contractAccessError(stores: readonly string[], contractNumber: s
   const candidates: string[] = exactStore ? [exactStore] : contractStores(number);
   if (!candidates.length) return `O contrato ${number} não pertence a uma loja cadastrada. Confira o número informado.`;
   if (candidates.some((store) => stores.includes(store))) return null;
-  return `O contrato ${number} é da loja ${candidates.join(" ou ")}. Você só pode consultar contratos de: ${stores.join(", ")}.`;
+  return `O contrato ${number} é da loja ${candidates.map(storeLabel).join(" ou ")}. Você só pode consultar contratos de: ${stores.map(storeLabel).join(", ")}.`;
 }
