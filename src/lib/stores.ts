@@ -1,6 +1,7 @@
 /**
  * Lojas com contratos ativos. O número do contrato começa com as 3 letras da loja
- * (ex.: FOR024159-26 → FOR10); o contrato informa a loja completa (ex.: "Loja: SAO11").
+ * (ex.: FOR024159-26 → FOR10), exceto em São Paulo, onde começa com o aeroporto (GRU → SAO10, CGH → SAO11);
+ * o contrato informa a loja completa (ex.: "Loja: SAO11").
  */
 export const STORES = [
   "AJU10",
@@ -29,23 +30,26 @@ export const STORES = [
 ] as const;
 export type StoreCode = (typeof STORES)[number];
 
-/** As duas lojas de São Paulo têm o mesmo prefixo; o aeroporto diferencia uma da outra. */
-const STORE_NAMES: Partial<Record<string, string>> = { SAO10: "GRU", SAO11: "CGH" };
+/** Nas lojas de São Paulo o contrato começa com o aeroporto, não com a sigla da loja (ex.: GRU… → SAO10). */
+const AIRPORT_PREFIXES: Record<string, StoreCode> = { GRU: "SAO10", CGH: "SAO11" };
 
 /** Sigla para exibição (ex.: "SAO10 - GRU"). */
 export function storeLabel(store: string) {
-  return STORE_NAMES[store] ? `${store} - ${STORE_NAMES[store]}` : store;
+  const airport = Object.keys(AIRPORT_PREFIXES).find((prefix) => AIRPORT_PREFIXES[prefix] === store);
+  return airport ? `${store} - ${airport}` : store;
 }
 
 const STORE_PATTERN = /\b([A-Z]{3}\d{2})\b/;
 
-/** Lojas possíveis para o contrato pelo prefixo de 3 letras. SAO pode ser SAO10 (GRU) ou SAO11 (CGH). */
+/** Lojas possíveis para o contrato pelo prefixo de 3 letras (GRU → SAO10, CGH → SAO11). */
 export function contractStores(contractNumber: string): StoreCode[] {
   const prefix = contractNumber
     .trim()
     .toUpperCase()
     .match(/^[A-Z]{3}/)?.[0];
-  return prefix ? STORES.filter((store) => store.startsWith(prefix)) : [];
+  if (!prefix) return [];
+  if (AIRPORT_PREFIXES[prefix]) return [AIRPORT_PREFIXES[prefix]];
+  return STORES.filter((store) => store.startsWith(prefix));
 }
 
 /** Interpreta um código de loja informado pelo Coral (ex.: "SAO11 - São Paulo"). */
