@@ -7,13 +7,10 @@ import { personName } from "@/lib/person-name";
 import { REQUEST_STATUS_LABELS } from "@/lib/services/request-status";
 import { executionStatusLabels } from "@/lib/batch-status-labels";
 import { wasAutoApproved } from "@/lib/services/request-status";
+import { safeText } from "@/lib/server/spreadsheet";
 
 const statusLabels: Record<string, string> = REQUEST_STATUS_LABELS;
 const actionLabels: Record<string, string> = { CONSIDERAR_DMA: "Considerar DMA", DESCONSIDERAR_DMA: "Desconsiderar DMA" };
-function safeText(value: unknown) {
-  const text = value == null ? "" : String(value);
-  return /^[\t\r ]*[=+@-]/.test(text) ? `'${text}` : text;
-}
 
 export async function GET() {
   const user = await isAllowed(["attendant", "admin"]);

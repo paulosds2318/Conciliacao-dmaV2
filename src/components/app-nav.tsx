@@ -28,6 +28,7 @@ export function AppNav({ coralState }: { coralState: CoralIntegrationState }) {
         { href: "/acoes-manuais", label: "Ação manual por planilha" },
         { href: "/consulta-dma", label: "Situação DMA" },
         { href: "/gestao-usuarios", label: "👥 Gestão de usuários" },
+        { href: "/painel", label: "Painel" },
       ];
   const roleLabel = isAdmin ? "Perfil Administrador" : "Perfil Atendente";
   const coralLabel = coralState === "integrated" ? "Coral Integrado" : coralState === "test" ? "Coral em teste" : "Coral não configurado";

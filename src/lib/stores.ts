@@ -52,6 +52,13 @@ export function contractStores(contractNumber: string): StoreCode[] {
   return STORES.filter((store) => store.startsWith(prefix));
 }
 
+/** Loja que fica gravada na solicitação: a informada pelo Coral ou, sem ela, a única possível pelo número. */
+export function resolveContractStore(contractNumber: string, exactStore?: string | null): string | null {
+  if (exactStore) return exactStore;
+  const candidates = contractStores(contractNumber);
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 /** Interpreta um código de loja informado pelo Coral (ex.: "SAO11 - São Paulo"). */
 export function parseStoreCode(value: unknown): StoreCode | null {
   if (typeof value !== "string") return null;

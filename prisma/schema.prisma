@@ -81,6 +81,8 @@ model DmaRequest {
   contractName     String
   observations      String?
   coralContractId  String?
+  /// Loja do contrato (ex.: SAO10), informada pelo Coral ou deduzida do número; usada no painel do administrador.
+  store            String?
   status           String   @default("ANALYZING")
   version          Int      @default(1)
   submittedAt      DateTime?
@@ -93,6 +95,7 @@ model DmaRequest {
   auditEvents      AuditEvent[]
   @@index([requesterId, status])
   @@index([status, submittedAt])
+  @@index([createdAt])
   @@map("dma_requests")
 }
 

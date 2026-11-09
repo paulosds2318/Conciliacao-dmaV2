@@ -10,6 +10,7 @@ import { removeStoredPdf, storePdf } from "@/lib/server/storage";
 import { createRequestSchema } from "@/lib/validators/request";
 import { requiresVoucher } from "@/lib/services/request-policy";
 import { checkContractAccess } from "@/lib/server/store-access";
+import { resolveContractStore } from "@/lib/stores";
 import { wasAutoApproved } from "@/lib/services/request-status";
 export const maxDuration = 150;
 export async function GET() {
@@ -95,6 +96,7 @@ export async function POST(request: NextRequest) {
         contractName: coral.number,
         observations: parsed.data.observations || null,
         coralContractId: coral.id,
+        store: resolveContractStore(coral.number, coral.store),
         status: "ANALYZING",
         submittedAt: new Date(),
         documents: {

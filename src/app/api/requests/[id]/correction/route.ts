@@ -8,6 +8,7 @@ import { parseDocumentRemovalHistory } from "@/lib/server/document-removals";
 import { requiresVoucher } from "@/lib/services/request-policy";
 import { lookupContract } from "@/lib/server/coral";
 import { checkContractAccess } from "@/lib/server/store-access";
+import { resolveContractStore } from "@/lib/stores";
 export const maxDuration = 150;
 type Context = { params: Promise<{ id: string }> };
 export async function POST(request: NextRequest, { params }: Context) {
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest, { params }: Context) {
   const requestedContract = form.get("contractName");
   const newContractNumber = typeof requestedContract === "string" ? requestedContract.trim() : "";
   if (newContractNumber.length > 80) return apiError("Informe um número de contrato válido.");
-  let contractChange: { contractName: string; coralContractId: string } | null = null;
+  let contractChange: { contractName: string; coralContractId: string; store: string | null } | null = null;
   if (newContractNumber && newContractNumber.toLowerCase() !== item.contractName.toLowerCase()) {
     const accessError = await checkContractAccess(user, newContractNumber);
     if (accessError) return apiError(accessError, 403);
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest, { params }: Context) {
       return apiError("O Coral não retornou o identificador interno do novo contrato. Não é possível reabrir com ele agora.", 422);
     const coralAccessError = await checkContractAccess(user, coral.number, coral.store);
     if (coralAccessError) return apiError(coralAccessError, 403);
-    contractChange = { contractName: coral.number, coralContractId: coral.id };
+    contractChange = { contractName: coral.number, coralContractId: coral.id, store: resolveContractStore(coral.number, coral.store) };
   }
   const version = item.version + 1;
   const stored: Array<{ storageKey: string }> = [];
