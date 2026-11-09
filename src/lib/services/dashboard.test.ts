@@ -5,7 +5,6 @@ import {
   elapsed,
   formatDuration,
   ADMIN_REJECTION_REASON,
-  businessSeconds,
   previousFilters,
   reasonLabel,
   summarizeDecisionTimes,
@@ -195,15 +194,7 @@ describe("comparação com o período anterior", () => {
   });
 });
 
-describe("tempo de decisão em horário comercial", () => {
-  it("conta só o expediente de dias úteis", () => {
-    // Sexta 17h → segunda 9h (Brasília): 1 h na sexta + 1 h na segunda.
-    assert.equal(businessSeconds(new Date("2026-11-06T20:00:00Z"), new Date("2026-11-09T12:00:00Z")), 2 * 3600);
-    // Dentro do mesmo dia útil, conta o tempo inteiro.
-    assert.equal(businessSeconds(new Date("2026-11-09T13:00:00Z"), new Date("2026-11-09T14:30:00Z")), 5400);
-    // Noite inteira fora do expediente.
-    assert.equal(businessSeconds(new Date("2026-11-09T22:00:00Z"), new Date("2026-11-10T10:00:00Z")), 0);
-  });
+describe("resumo do tempo de decisão", () => {
   it("resume mediana e média do expediente e mediana corrida, por loja", () => {
     const { total, byStore } = summarizeDecisionTimes([
       { store: "FOR10", queuedAt: new Date("2026-11-09T13:00:00Z"), decidedAt: new Date("2026-11-09T14:00:00Z") },

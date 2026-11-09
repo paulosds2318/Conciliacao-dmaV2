@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { personName } from "@/lib/person-name";
 import { wasAutoApproved } from "@/lib/services/request-status";
+import { extraHolidays } from "@/lib/services/business-time";
 import {
   ADMIN_REJECTION_REASON,
   APPROVED_STATUSES,
@@ -188,7 +189,7 @@ export async function loadSummary(filters: DashboardFilters) {
 /**
  * Tempo de decisão do administrador, das decisões tomadas no período: da conclusão da análise da IA (entrada na fila)
  * até a aprovação ou recusa daquela versão. Aprovações automáticas não entram, porque não passam pelo administrador.
- * O desconto de noites e fins de semana é feito em `summarizeDecisionTimes`.
+ * O desconto de noites, fins de semana e feriados é feito em `summarizeDecisionTimes`.
  */
 export async function loadDecisionTimes(filters: DashboardFilters) {
   const rows = await db.$queryRaw<Array<{ store: string | null; queuedAt: Date; decidedAt: Date }>>`
@@ -202,7 +203,7 @@ export async function loadDecisionTimes(filters: DashboardFilters) {
         AND a.status = 'COMPLETED' AND a."createdAt" <= d."createdAt"
     ) q
     WHERE q.queued_at IS NOT NULL AND ${sqlWhere(filters, Prisma.sql`d."createdAt"`, false)}`;
-  return summarizeDecisionTimes(rows);
+  return summarizeDecisionTimes(rows, extraHolidays());
 }
 
 /**

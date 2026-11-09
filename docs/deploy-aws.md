@@ -74,6 +74,7 @@ Configuração (texto simples):
 | `CORAL_DMA_ELIGIBILITY_URL` | `https://servicescoral.aluguefoco.com.br/api/rentagreement/dma/eligibility` |
 | `MODO_TESTE_API` | `true` até homologar; depois `false` |
 | `APROVACAO_AUTOMATICA` | Opcional. `false` desliga a aprovação automática de vouchers Rentalcars/Rentcars (tudo volta para o administrador); ausente ou qualquer outro valor mantém ligada |
+| `FERIADOS_EXTRAS` | Opcional. Folgas da empresa além dos feriados nacionais (ex.: Carnaval, Corpus Christi), descontadas do tempo de decisão. Datas `AAAA-MM-DD` separadas por vírgula, ex.: `2027-02-08,2027-02-09` |
 | `DOCUMENT_STORAGE_BUCKET` | Nome do bucket S3 |
 | `DOCUMENT_STORAGE_REGION` | Região do bucket (ex.: `sa-east-1`) |
 | `REQUIRE_DOCUMENT_BUCKET` | `true` |

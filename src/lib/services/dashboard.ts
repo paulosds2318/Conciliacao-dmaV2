@@ -1,5 +1,6 @@
 import { STORES } from "@/lib/stores";
 import { REQUEST_STATUS_LABELS } from "@/lib/services/request-status";
+import { businessSeconds } from "@/lib/services/business-time";
 
 /** Aprovadas e enviadas ao Coral (em andamento, concluídas ou com falha no envio), como no resumo da página inicial. */
 export const APPROVED_STATUSES = ["EXECUTING", "COMPLETED", "EXECUTION_FAILED", "EXECUTION_UNCERTAIN"];
@@ -206,24 +207,6 @@ export function partnerName(raw: string | null | undefined) {
   return PARTNER_NAMES[trimmed.toLowerCase().replace(/[^a-z0-9]/g, "")] ?? trimmed;
 }
 
-/** Expediente do administrador (horário de Brasília), usado no tempo de decisão. Feriados não são descontados. */
-export const BUSINESS_HOURS = { start: 8, end: 18, label: "seg a sex, 8h às 18h" };
-
-/** Segundos de expediente entre duas datas: só dias úteis (seg a sex) e só dentro do horário comercial. */
-export function businessSeconds(start: Date, end: Date) {
-  const from = start.getTime() - BRASILIA_OFFSET_MS;
-  const until = end.getTime() - BRASILIA_OFFSET_MS;
-  let total = 0;
-  for (let day = Math.floor(from / DAY_MS) * DAY_MS; day < until; day += DAY_MS) {
-    const weekday = new Date(day).getUTCDay();
-    if (weekday === 0 || weekday === 6) continue;
-    const open = day + BUSINESS_HOURS.start * 3600_000;
-    const close = day + BUSINESS_HOURS.end * 3600_000;
-    total += Math.max(0, Math.min(until, close) - Math.max(from, open));
-  }
-  return total / 1000;
-}
-
 function median(values: number[]) {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -231,13 +214,16 @@ function median(values: number[]) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-/** Mediana e média (expediente) e mediana corrida das decisões, no total e por loja. */
-export function summarizeDecisionTimes(rows: Array<{ store: string | null; queuedAt: Date; decidedAt: Date }>) {
+/** Mediana e média (expediente, sem feriados) e mediana corrida das decisões, no total e por loja. */
+export function summarizeDecisionTimes(
+  rows: Array<{ store: string | null; queuedAt: Date; decidedAt: Date }>,
+  holidays: ReadonlySet<string> = new Set(),
+) {
   const groups = new Map<string, Array<{ business: number; calendar: number }>>();
   const all: Array<{ business: number; calendar: number }> = [];
   for (const row of rows) {
     const item = {
-      business: businessSeconds(row.queuedAt, row.decidedAt),
+      business: businessSeconds(row.queuedAt, row.decidedAt, holidays),
       calendar: Math.max(0, (row.decidedAt.getTime() - row.queuedAt.getTime()) / 1000),
     };
     all.push(item);

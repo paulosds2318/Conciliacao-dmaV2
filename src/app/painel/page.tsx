@@ -20,10 +20,10 @@ import { LinkPagination } from "@/components/link-pagination";
 import { TimelineChart } from "@/components/timeline-chart";
 import { personName } from "@/lib/person-name";
 import { REQUEST_STATUS_LABELS } from "@/lib/services/request-status";
+import { BUSINESS_HOURS } from "@/lib/services/business-time";
 import {
   ACTION_LABELS,
   ATTENTION_STATUSES,
-  BUSINESS_HOURS,
   PERIODS,
   dashboardQuery,
   elapsed,

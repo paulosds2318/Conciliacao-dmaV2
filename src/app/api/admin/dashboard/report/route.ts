@@ -16,9 +16,9 @@ import {
 import { safeText, styleHeader } from "@/lib/server/spreadsheet";
 import { personName } from "@/lib/person-name";
 import { REQUEST_STATUS_LABELS } from "@/lib/services/request-status";
+import { BUSINESS_HOURS } from "@/lib/services/business-time";
 import {
   ACTION_LABELS,
-  BUSINESS_HOURS,
   formatDateTime,
   formatDuration,
   outcomeLabel,

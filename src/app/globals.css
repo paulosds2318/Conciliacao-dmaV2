@@ -282,7 +282,8 @@ h2 {
 
 .primary {
   background: var(--foco-red);
-  color: var(--white);
+  /* Branco fixo: no tema escuro --white vira a cor dos cartões e o texto sumia no vermelho. */
+  color: #ffffff;
   box-shadow: 0 1px 2px rgba(242, 0, 0, 0.12);
 }
 
@@ -1758,6 +1759,14 @@ div.dashboard-metric:hover {
 .dashboard-wrap {
   min-width: 220px;
   white-space: normal;
+}
+/* A célula de tabela vazia é a última da linha; sem isto herdaria o alinhamento à direita da coluna de ações. */
+.dashboard-table td.empty:last-child {
+  text-align: center;
+}
+:root[data-theme="dark"] .nav-link.active,
+:root[data-theme="dark"] .nav-link:hover {
+  color: #ff6b6b;
 }
 
 /* Gráfico de evolução: uma série, barras finas com topo arredondado, grade e eixo discretos. */

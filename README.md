@@ -130,6 +130,7 @@ Os PDFs ficam no diretório `private-uploads` montado como volume da aplicação
 | `CORAL_API_URL` | Alias para `CORAL_DMA_ELIGIBILITY_URL`; se não houver a variável nova, também aponta para o endpoint de ações DMA |
 | `MODO_TESTE_API` | `true` simula a execução DMA. A consulta do contrato também é simulada quando não há token Coral configurado |
 | `APROVACAO_AUTOMATICA` | `false` desliga a aprovação automática de vouchers Rentalcars/Rentcars; ausente mantém ligada |
+| `FERIADOS_EXTRAS` | Opcional. Folgas da empresa além dos feriados nacionais, descontadas do tempo de decisão (ex.: Carnaval). Datas `AAAA-MM-DD` separadas por vírgula |
 | `DOCUMENT_STORAGE_BUCKET` | Bucket S3 privado para voucher e contrato (produção). Se vazio, usa o disco |
 | `DOCUMENT_STORAGE_PREFIX`, `DOCUMENT_STORAGE_REGION`, `DOCUMENT_STORAGE_KMS_KEY_ID` | Prefixo das chaves no bucket, região e chave KMS opcional (sem ela, criptografia AES256 do S3) |
 | `REQUIRE_DOCUMENT_BUCKET` | `true` impede a aplicação de subir sem bucket configurado |
