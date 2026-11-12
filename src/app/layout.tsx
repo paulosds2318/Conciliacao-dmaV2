@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { AppNav } from "@/components/app-nav";
 import { ConfirmationProvider } from "@/components/confirmation-provider";
+import { SessionTimeout } from "@/components/session-timeout";
 import { hasCoralCredentials } from "@/lib/server/coral-auth";
 import "./globals.css";
 
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ConfirmationProvider>
           <AppNav coralState={coralState} />
           {children}
+          <SessionTimeout />
         </ConfirmationProvider>
       </body>
     </html>

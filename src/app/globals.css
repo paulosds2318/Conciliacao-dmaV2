@@ -1340,7 +1340,8 @@ a:hover {
   height: 38px;
 }
 
-@media (max-width: 1180px) {
+/* Abaixo desta largura os links não cabem ao lado da marca e da conta (5 itens no menu do admin) e vão para a linha de baixo. */
+@media (max-width: 1400px) {
   .app-nav {
     height: auto;
     padding: 14px 20px;
@@ -1767,6 +1768,13 @@ div.dashboard-metric:hover {
 :root[data-theme="dark"] .nav-link.active,
 :root[data-theme="dark"] .nav-link:hover {
   color: #ff6b6b;
+}
+/* Avisos no tema escuro: o texto verde/vermelho escuro some no fundo escuro do aviso. */
+:root[data-theme="dark"] .notice {
+  color: #86efac;
+}
+:root[data-theme="dark"] .error-notice {
+  color: #fca5a5;
 }
 
 /* Gráfico de evolução: uma série, barras finas com topo arredondado, grade e eixo discretos. */
