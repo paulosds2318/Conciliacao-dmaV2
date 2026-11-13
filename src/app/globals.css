@@ -1248,6 +1248,10 @@ a:hover {
   font-size: 11px;
   text-align: center;
 }
+/* Linha vermelha de destaque na base do menu, só na tela de login. */
+.app-nav.app-nav-login {
+  border-bottom: 3px solid var(--foco-red);
+}
 .nav-auth-pill {
   display: inline-flex;
   align-items: center;

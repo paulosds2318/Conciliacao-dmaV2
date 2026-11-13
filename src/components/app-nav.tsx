@@ -40,7 +40,7 @@ export function AppNav({ coralState }: { coralState: CoralIntegrationState }) {
         : "Configure a autenticação e o endpoint de ação do Coral.";
 
   return (
-    <nav className="app-nav" aria-label="Navegação principal">
+    <nav className={`app-nav ${pathname.startsWith("/login") ? "app-nav-login" : ""}`} aria-label="Navegação principal">
       <div className="nav-left">
         <Link href="/" className="nav-logo-link" title="Foco Aluguel de Carros">
           <Image src="/foco-logo.png" alt="Foco" width={100} height={34} className="nav-logo-img" style={{ height: 34, width: 100 }} />
