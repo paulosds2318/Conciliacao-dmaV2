@@ -28,14 +28,14 @@ export function LoginForm() {
     router.refresh();
   }
   return (
-    <form className="request-form" onSubmit={submit}>
+    <form className="request-form login-form" onSubmit={submit}>
       {params.get("motivo") === IDLE_LOGOUT_REASON && (
         <div className="notice" role="status">
           Sua sessão foi encerrada após {IDLE_TIMEOUT_MINUTES} minutos sem atividade. Entre novamente para continuar.
         </div>
       )}
       <label className="filter-field">
-        E-mail
+        E-mail corporativo
         <input name="email" type="email" autoComplete="username" required />
       </label>
       <label className="filter-field">
@@ -44,7 +44,7 @@ export function LoginForm() {
       </label>
       {error && <div className="notice error-notice">{error}</div>}
       <button className="button primary" disabled={busy}>
-        {busy ? "Entrando…" : "Entrar"}
+        {busy ? "Entrando…" : "Entrar na Plataforma"}
       </button>
     </form>
   );

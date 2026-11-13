@@ -94,9 +94,16 @@ export function AppNav({ coralState }: { coralState: CoralIntegrationState }) {
       ) : (
         <div className="nav-right">
           <ThemeToggle />
-          <Link className="button secondary" href="/login">
-            Entrar
-          </Link>
+          {pathname.startsWith("/login") ? (
+            <span className="nav-auth-pill">
+              <span className="nav-auth-dot" aria-hidden="true" />
+              Portal de Autenticação
+            </span>
+          ) : (
+            <Link className="button secondary" href="/login">
+              Entrar
+            </Link>
+          )}
         </div>
       )}
     </nav>
