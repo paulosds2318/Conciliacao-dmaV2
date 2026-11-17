@@ -9,6 +9,7 @@ import { requiresVoucher } from "@/lib/services/request-policy";
 import { lookupContract } from "@/lib/server/coral";
 import { checkContractAccess } from "@/lib/server/store-access";
 import { resolveContractStore } from "@/lib/stores";
+import { attachmentError } from "@/lib/server/attachment-check";
 export const maxDuration = 150;
 type Context = { params: Promise<{ id: string }> };
 export async function POST(request: NextRequest, { params }: Context) {
@@ -28,6 +29,8 @@ export async function POST(request: NextRequest, { params }: Context) {
   if (!(contract instanceof File) || !contract.size) return apiError("Anexe novamente o contrato (PDF ou imagem).");
   if (needsVoucher && (!(voucher instanceof File) || !voucher.size))
     return apiError("Anexe novamente o voucher e o contrato (PDF ou imagem).");
+  const attachmentProblem = await attachmentError({ voucher: voucher instanceof File ? voucher : null, contract });
+  if (attachmentProblem) return apiError(attachmentProblem);
   // O atendente pode corrigir o número do contrato na reabertura; o novo número é validado novamente no Coral.
   const requestedContract = form.get("contractName");
   const newContractNumber = typeof requestedContract === "string" ? requestedContract.trim() : "";

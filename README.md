@@ -9,9 +9,10 @@ Aplicação web para acompanhar solicitações de consideração ou desconsidera
 - O atendente abre uma solicitação para **Considerar DMA** ou **Desconsiderar DMA**, informa o contrato, adiciona observações opcionais e anexa obrigatoriamente o voucher e o contrato em PDF.
 - O número do contrato pode ser consultado no Coral antes do envio.
 - Os PDFs são validados no servidor e guardados fora da pasta pública.
-- A análise via OpenRouter procura nome e CPF no contrato e compara esses dados com o voucher. Se os dados necessários não forem encontrados ou divergirem, a solicitação é recusada automaticamente e fica disponível para correção.
+- A análise via OpenRouter procura nome e CPF no contrato e compara esses dados com o voucher. Se os dados necessários não forem encontrados, a solicitação é recusada automaticamente, com o motivo detalhado (o que faltou e o que foi lido no outro documento), e fica disponível para correção. Se os dois documentos trazem os dados e eles divergem, a solicitação segue para o administrador com as divergências destacadas.
 - A análise da IA é auxiliar. Solicitações que passam pela análise seguem para decisão do administrador.
-- O administrador aprova ou recusa com justificativa. A aprovação inicia a ação configurada no Coral; a recusa permite ao atendente corrigir os documentos e reenviar a mesma solicitação para aprovação.
+- O contrato anexado só pode ser PDF e precisa ser o contrato de locação padrão da Foco (com texto, não digitalizado); o voucher não pode ser o mesmo arquivo nem um contrato. O envio é barrado na hora, com a mensagem do que corrigir. Detalhes em `docs/fluxo.md`.
+- O administrador aprova ou recusa com justificativa. A aprovação inicia a ação configurada no Coral; a recusa permite ao atendente corrigir os documentos e reenviar a mesma solicitação para aprovação. Na fila, o administrador também pode aprovar várias solicitações de uma vez (aprovação em lote) e forçar a aprovação de uma solicitação recusada, com justificativa obrigatória registrada no histórico (ver `docs/fluxo.md`).
 - O atendente só pode editar ou cancelar solicitações devolvidas pela análise (recusadas ou com falha na análise), para então reabri-las. Enquanto a solicitação está na fila de aprovação do administrador, ou depois de aprovada, o atendente não pode alterá-la.
 - Não há exclusão de solicitações nem de ações por planilha: todo registro permanece no histórico para auditoria. Solicitações indevidas são recusadas pelo administrador (com justificativa) ou canceladas pelo atendente. Registros excluídos antes dessa regra continuam disponíveis para consulta em Arquivadas/Excluídas.
 
@@ -36,18 +37,18 @@ Não há cadastro público. O acesso é criado pelo seed inicial ou pela gestão
 
 ## Telas principais
 
-| Caminho | Acesso e finalidade |
-| --- | --- |
-| `/login` | Autenticação |
-| `/` | Página inicial |
-| `/solicitacoes/nova` | Abertura de solicitação pelo atendente |
-| `/minhas-solicitacoes` | Solicitações abertas pelo atendente |
-| `/analise` | Fila de aprovação, solicitações aprovadas e arquivadas/excluídas; auditoria do administrador |
-| `/solicitacoes/[id]` | Detalhes, documentos, análise, histórico e ações permitidas pelo perfil |
-| `/acoes-manuais` | Importação e histórico de ações por planilha |
-| `/acoes-manuais/[id]` | Resultado por contrato e exportação da ação |
-| `/consulta-dma` | Consulta individual ou em planilha da situação DMA |
-| `/gestao-usuarios` | Gestão de usuários pelo administrador |
+| Caminho                | Acesso e finalidade                                                                          |
+| ---------------------- | -------------------------------------------------------------------------------------------- |
+| `/login`               | Autenticação                                                                                 |
+| `/`                    | Página inicial                                                                               |
+| `/solicitacoes/nova`   | Abertura de solicitação pelo atendente                                                       |
+| `/minhas-solicitacoes` | Solicitações abertas pelo atendente                                                          |
+| `/analise`             | Fila de aprovação, solicitações aprovadas e arquivadas/excluídas; auditoria do administrador |
+| `/solicitacoes/[id]`   | Detalhes, documentos, análise, histórico e ações permitidas pelo perfil                      |
+| `/acoes-manuais`       | Importação e histórico de ações por planilha                                                 |
+| `/acoes-manuais/[id]`  | Resultado por contrato e exportação da ação                                                  |
+| `/consulta-dma`        | Consulta individual ou em planilha da situação DMA                                           |
+| `/gestao-usuarios`     | Gestão de usuários pelo administrador                                                        |
 
 ## Requisitos
 
@@ -116,29 +117,29 @@ Os PDFs ficam no diretório `private-uploads` montado como volume da aplicação
 
 ## Variáveis de integração
 
-| Variável | Uso |
-| --- | --- |
-| `DATABASE_URL` | Conexão Prisma/PostgreSQL |
-| `BETTER_AUTH_SECRET` | Segredo para sessões e autenticação |
-| `BETTER_AUTH_URL` | URL pública da aplicação |
-| `OPENROUTER_API_KEY` | Chave privada do OpenRouter |
-| `OPENROUTER_MODEL` | Modelo configurado para receber e analisar PDFs |
-| `CORAL_AUTH_LOGIN`, `CORAL_AUTH_PASSWORD` | Usuário de serviço do Coral. O app faz `POST /api/auth/login`, guarda o token em memória por 55 minutos e renova sozinho. Em produção vêm do segredo `foco/office/apps` |
-| `CORAL_AUTH_URL` | Opcional. Rota de login; se omitida, usa o host de `CORAL_CONTRACT_LOOKUP_URL` + `/api/auth/login` |
-| `CORAL_CONTRACT_LOOKUP_URL` | URL de consulta; deve conter o marcador `{CONTRATO}` |
-| `CORAL_DMA_ELIGIBILITY_URL` | Endpoint `PUT` usado após aprovação para considerar/desconsiderar DMA; se omitido, usa o domínio de `CORAL_CONTRACT_LOOKUP_URL` |
-| `CORAL_API_URL` | Alias para `CORAL_DMA_ELIGIBILITY_URL`; se não houver a variável nova, também aponta para o endpoint de ações DMA |
-| `MODO_TESTE_API` | `true` simula a execução DMA. A consulta do contrato também é simulada quando não há token Coral configurado |
-| `APROVACAO_AUTOMATICA` | `false` desliga a aprovação automática de vouchers Rentalcars/Rentcars; ausente mantém ligada |
-| `FERIADOS_EXTRAS` | Opcional. Folgas da empresa além dos feriados nacionais, descontadas do tempo de decisão (ex.: Carnaval). Datas `AAAA-MM-DD` separadas por vírgula |
-| `DOCUMENT_STORAGE_BUCKET` | Bucket S3 privado para voucher e contrato (produção). Se vazio, usa o disco |
-| `DOCUMENT_STORAGE_PREFIX`, `DOCUMENT_STORAGE_REGION`, `DOCUMENT_STORAGE_KMS_KEY_ID` | Prefixo das chaves no bucket, região e chave KMS opcional (sem ela, criptografia AES256 do S3) |
-| `REQUIRE_DOCUMENT_BUCKET` | `true` impede a aplicação de subir sem bucket configurado |
-| `DOCUMENT_STORAGE_PATH` | Diretório privado para os documentos quando não há bucket (desenvolvimento) |
-| `MAX_PDF_SIZE_MB` | Limite de upload por PDF no servidor |
-| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | Credenciais para criar/atualizar o administrador inicial |
-| `SEED_ATTENDANT_EMAIL`, `SEED_ATTENDANT_PASSWORD`, `SEED_ATTENDANT_STORES` | Credenciais opcionais para criar/atualizar um atendente e suas lojas (ex.: `SAO10,SAO11`) |
-| `FRAME_ANCESTORS` | Origens permitidas na diretiva de segurança `frame-ancestors` |
+| Variável                                                                            | Uso                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                                      | Conexão Prisma/PostgreSQL                                                                                                                                               |
+| `BETTER_AUTH_SECRET`                                                                | Segredo para sessões e autenticação                                                                                                                                     |
+| `BETTER_AUTH_URL`                                                                   | URL pública da aplicação                                                                                                                                                |
+| `OPENROUTER_API_KEY`                                                                | Chave privada do OpenRouter                                                                                                                                             |
+| `OPENROUTER_MODEL`                                                                  | Modelo configurado para receber e analisar PDFs                                                                                                                         |
+| `CORAL_AUTH_LOGIN`, `CORAL_AUTH_PASSWORD`                                           | Usuário de serviço do Coral. O app faz `POST /api/auth/login`, guarda o token em memória por 55 minutos e renova sozinho. Em produção vêm do segredo `foco/office/apps` |
+| `CORAL_AUTH_URL`                                                                    | Opcional. Rota de login; se omitida, usa o host de `CORAL_CONTRACT_LOOKUP_URL` + `/api/auth/login`                                                                      |
+| `CORAL_CONTRACT_LOOKUP_URL`                                                         | URL de consulta; deve conter o marcador `{CONTRATO}`                                                                                                                    |
+| `CORAL_DMA_ELIGIBILITY_URL`                                                         | Endpoint `PUT` usado após aprovação para considerar/desconsiderar DMA; se omitido, usa o domínio de `CORAL_CONTRACT_LOOKUP_URL`                                         |
+| `CORAL_API_URL`                                                                     | Alias para `CORAL_DMA_ELIGIBILITY_URL`; se não houver a variável nova, também aponta para o endpoint de ações DMA                                                       |
+| `MODO_TESTE_API`                                                                    | `true` simula a execução DMA. A consulta do contrato também é simulada quando não há token Coral configurado                                                            |
+| `APROVACAO_AUTOMATICA`                                                              | `false` desliga a aprovação automática de vouchers Rentalcars/Rentcars; ausente mantém ligada                                                                           |
+| `FERIADOS_EXTRAS`                                                                   | Opcional. Folgas da empresa além dos feriados nacionais, descontadas do tempo de decisão (ex.: Carnaval). Datas `AAAA-MM-DD` separadas por vírgula                      |
+| `DOCUMENT_STORAGE_BUCKET`                                                           | Bucket S3 privado para voucher e contrato (produção). Se vazio, usa o disco                                                                                             |
+| `DOCUMENT_STORAGE_PREFIX`, `DOCUMENT_STORAGE_REGION`, `DOCUMENT_STORAGE_KMS_KEY_ID` | Prefixo das chaves no bucket, região e chave KMS opcional (sem ela, criptografia AES256 do S3)                                                                          |
+| `REQUIRE_DOCUMENT_BUCKET`                                                           | `true` impede a aplicação de subir sem bucket configurado                                                                                                               |
+| `DOCUMENT_STORAGE_PATH`                                                             | Diretório privado para os documentos quando não há bucket (desenvolvimento)                                                                                             |
+| `MAX_PDF_SIZE_MB`                                                                   | Limite de upload por PDF no servidor                                                                                                                                    |
+| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`                                           | Credenciais para criar/atualizar o administrador inicial                                                                                                                |
+| `SEED_ATTENDANT_EMAIL`, `SEED_ATTENDANT_PASSWORD`, `SEED_ATTENDANT_STORES`          | Credenciais opcionais para criar/atualizar um atendente e suas lojas (ex.: `SAO10,SAO11`)                                                                               |
+| `FRAME_ANCESTORS`                                                                   | Origens permitidas na diretiva de segurança `frame-ancestors`                                                                                                           |
 
 Nunca publique o arquivo `.env` nem inclua credenciais reais no repositório.
 

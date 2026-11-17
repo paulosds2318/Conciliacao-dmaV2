@@ -24,6 +24,8 @@ export type DocumentComparison = {
   voucherTextOrigin?: string | null;
   confidence: number | null;
   identity: DocumentIdentity;
+  /** A IA avalia se o arquivo do voucher é, na verdade, um contrato de locação da Foco; nulo quando não deu para avaliar. */
+  voucherIsContract?: boolean | null;
   fields: Array<{ name: string; voucherValue?: string; contractValue?: string; match: boolean | null; evidence?: string }>;
   summary: string;
 };

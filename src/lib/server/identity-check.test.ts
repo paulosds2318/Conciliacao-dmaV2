@@ -136,11 +136,34 @@ describe("motivos de recusa automática", () => {
   });
   it("aponta dados ausentes quando nada confere", () => {
     const identity = { voucher: { name: null, cpf: null }, contract: { name: "FULANO", cpf: null }, cpfMatch: null, nameMatch: null };
-    assert.ok(getIdentityRejectionReasons(identity).includes("Nome do cliente ausente ou ilegível no voucher."));
+    const reasons = getIdentityRejectionReasons(identity);
+    assert.ok(reasons.includes("Nome do cliente ausente ou ilegível no voucher. No contrato consta: “FULANO”."));
+    assert.ok(reasons.includes("CPF do cliente ausente ou ilegível no voucher."));
+    assert.ok(reasons.includes("CPF do cliente ausente ou ilegível no contrato."));
+  });
+  it("diz o que foi lido no outro documento quando só um dos lados falta", () => {
+    const identity = {
+      voucher: { name: "ANA SOUZA", cpf: "111.111.111-11" },
+      contract: { name: null, cpf: "" },
+      cpfMatch: null,
+      nameMatch: null,
+    };
+    assert.deepEqual(getIdentityRejectionReasons(identity), [
+      "Nome do cliente ausente ou ilegível no contrato. No voucher consta: “ANA SOUZA”.",
+      "CPF do cliente ausente ou ilegível no contrato. No voucher consta: “111.111.111-11”.",
+    ]);
+  });
+  it("não recusa quando os dois documentos trazem os dados, mesmo divergentes (decide o administrador)", () => {
+    const identity = { voucher: { name: "ANA", cpf: "1" }, contract: { name: "BIA", cpf: "2" }, cpfMatch: false, nameMatch: false };
+    assert.deepEqual(getIdentityRejectionReasons(identity), []);
   });
   it("recusa contrato anexado diferente do validado no Coral", () => {
     assert.deepEqual(getContractNumberRejectionReasons({ expected: "REC001097-26", found: "REC001097-26", match: true }), []);
     assert.equal(getContractNumberRejectionReasons({ expected: "REC001097-26", found: "REC009999-26", match: false }).length, 1);
     assert.equal(getContractNumberRejectionReasons(undefined).length, 1);
+    assert.match(
+      getContractNumberRejectionReasons({ expected: "REC001097-26", found: null, match: null })[0],
+      /\(o contrato validado no Coral é o REC001097-26\)/,
+    );
   });
 });

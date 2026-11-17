@@ -20,7 +20,14 @@ const outcomes: Record<string, string> = {
   ANALYSIS_FAILED: "A análise automática não foi concluída. Consulte o detalhe e tente novamente.",
 };
 
-export function submissionFeedback(kind: SubmissionKind, status: string | undefined) {
+/** Com os motivos da recusa automática, a mensagem já diz o que divergiu (até 3 motivos; os demais ficam na tela). */
+export function submissionFeedback(kind: SubmissionKind, status: string | undefined, rejectionReasons: string[] = []) {
+  if (status === "REJECTED" && rejectionReasons.length) {
+    const hidden = rejectionReasons.length - 3;
+    return `${prefixes[kind]} A análise automática recusou a solicitação. ${rejectionReasons.slice(0, 3).join(" ")}${
+      hidden > 0 ? ` E mais ${hidden} ${hidden === 1 ? "motivo" : "motivos"}.` : ""
+    } Corrija os documentos e reabra.`;
+  }
   return `${prefixes[kind]} ${(status && outcomes[status]) || "A solicitação foi atualizada; confira o status abaixo."}`;
 }
 

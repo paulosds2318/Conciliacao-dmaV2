@@ -247,7 +247,8 @@ export function reasonLabel(reason: string) {
   if (/^O contrato anexado é o .+ mas o contrato validado no Coral é o /i.test(text))
     return "Contrato anexado diferente do validado no Coral";
   if (/^Número do contrato não localizado/i.test(text)) return "Número do contrato não localizado no contrato anexado";
-  return text.replace(/\.$/, "");
+  // Os motivos trazem o que foi lido nos documentos depois da primeira frase; para agrupar vale só a primeira.
+  return text.split(/\.\s/)[0].replace(/\.$/, "");
 }
 
 /** Ocorrências por motivo, do mais frequente para o menos, com as lojas que mais tiveram cada motivo. */

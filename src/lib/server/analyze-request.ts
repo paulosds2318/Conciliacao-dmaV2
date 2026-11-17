@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { comparePdfs } from "@/lib/server/openrouter";
+import { contractLayoutReasons, voucherDuplicatesContractReasons, voucherIsContractReasons } from "@/lib/server/contract-layout";
 import { executeApprovedRequest } from "@/lib/server/execute-request";
 import {
   autoApprovalEnabled,
@@ -17,19 +18,29 @@ export async function analyzeRequest(requestId: string, version: number, voucher
   try {
     const { contractName } = await db.dmaRequest.findUniqueOrThrow({ where: { id: requestId }, select: { contractName: true } });
     const [voucher, contract] = await Promise.all([voucherKey ? getStoredPdf(voucherKey) : null, getStoredPdf(contractKey)]);
-    const [aiComparison, voucherText] = await Promise.all([
+    const [aiComparison, voucherText, contractText] = await Promise.all([
       comparePdfs(voucher, contract, contractName),
       voucher ? extractPdfText(voucher) : null,
+      extractPdfText(contract),
     ]);
     const comparison = {
       ...aiComparison,
       voucherTextAvailable: voucherText !== null,
       voucherTextOrigin: voucherText ? detectPartnerFromText(voucherText) : null,
     };
-    const rejectionReasons = [
-      ...getContractNumberRejectionReasons(comparison.contractNumber),
-      ...(voucher ? getIdentityRejectionReasons(comparison.identity, comparison.reservation) : []),
+    // O contrato tem que ser o modelo padrão da Foco e o voucher não pode ser um contrato. Se algum dos dois falhar, só isso é
+    // apontado: número e dados do cliente lidos num documento errado seriam consequência, e mais ruído para quem vai corrigir.
+    const documentReasons = [
+      ...contractLayoutReasons(contractText),
+      ...(voucher ? voucherIsContractReasons({ text: voucherText, ai: comparison.voucherIsContract }) : []),
+      ...(voucher ? voucherDuplicatesContractReasons({ voucherText, contractText }) : []),
     ];
+    const rejectionReasons = documentReasons.length
+      ? documentReasons
+      : [
+          ...getContractNumberRejectionReasons(comparison.contractNumber),
+          ...(voucher ? getIdentityRejectionReasons(comparison.identity, comparison.reservation) : []),
+        ];
     const status = rejectionReasons.length ? "REJECTED" : "PENDING_REVIEW";
     const analysisStatus = rejectionReasons.length ? "AUTO_REJECTED" : "COMPLETED";
     const savedComparison = rejectionReasons.length

@@ -2260,3 +2260,51 @@ div.dashboard-metric:hover {
   min-height: 0;
   margin: 0;
 }
+
+/* Motivos e divergências da análise; aprovação em lote na fila do administrador. */
+.reason-list {
+  margin: 8px 0 12px;
+  padding-left: 20px;
+}
+.reason-list li {
+  padding: 3px 0;
+  line-height: 1.45;
+  white-space: normal;
+}
+.notice > div > .reason-list {
+  font-weight: 500;
+}
+.batch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+}
+.batch-bar > span {
+  margin-right: auto;
+}
+.batch-check {
+  width: 40px;
+}
+.batch-warning {
+  color: var(--foco-amber);
+  font-weight: 600;
+  white-space: normal;
+}
+:root[data-theme="dark"] .batch-warning {
+  color: #fcd34d;
+}
+.batch-result > div {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.batch-result p {
+  margin: 0;
+}

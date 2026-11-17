@@ -202,7 +202,13 @@ export async function loadDecisionTimes(filters: DashboardFilters) {
       WHERE a."requestId" = d."requestId" AND a."requestVersion" = d."requestVersion"
         AND a.status = 'COMPLETED' AND a."createdAt" <= d."createdAt"
     ) q
-    WHERE q.queued_at IS NOT NULL AND ${sqlWhere(filters, Prisma.sql`d."createdAt"`, false)}`;
+    WHERE q.queued_at IS NOT NULL
+      -- só a primeira decisão de cada versão: uma aprovação forçada vem depois da recusa e não mede a fila
+      AND NOT EXISTS (
+        SELECT 1 FROM review_decisions earlier
+        WHERE earlier."requestId" = d."requestId" AND earlier."requestVersion" = d."requestVersion" AND earlier."createdAt" < d."createdAt"
+      )
+      AND ${sqlWhere(filters, Prisma.sql`d."createdAt"`, false)}`;
   return summarizeDecisionTimes(rows, extraHolidays());
 }
 

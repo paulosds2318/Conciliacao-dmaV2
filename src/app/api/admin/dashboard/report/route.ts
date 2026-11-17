@@ -61,9 +61,9 @@ const decisionCells = (time: DecisionTime | undefined) => [
 ];
 const DECISION_HEADERS = [
   "Decisões do administrador",
-  `Tempo de decisão no expediente (${BUSINESS_HOURS.label}) · mediana`,
-  "Tempo de decisão no expediente · média",
-  "Tempo de decisão corrido · mediana",
+  `SLA · tempo de decisão no expediente (${BUSINESS_HOURS.label}) · mediana`,
+  "SLA · tempo de decisão no expediente · média",
+  "SLA · tempo de decisão corrido · mediana",
 ];
 
 /** Aba de contagens com cabeçalho na linha `headerRow` e uma linha de total em negrito. */
@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
       ["Aprovadas pelo administrador", totals.adminApproved, before.adminApproved, (value) => value ?? 0],
       ["Recusadas", totals.rejected, before.rejected, (value) => value ?? 0],
       [
-        "Tempo de decisão no expediente (mediana)",
+        "SLA · tempo de decisão no expediente (mediana)",
         decisionTimes.total.medianSeconds,
         previousDecision!.total.medianSeconds,
         formatDuration,

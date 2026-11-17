@@ -210,6 +210,24 @@ describe("resumo do tempo de decisão", () => {
 });
 
 describe("motivos de recusa", () => {
+  it("agrupa o motivo detalhado pela primeira frase, sem o que foi lido nos documentos", () => {
+    assert.equal(
+      reasonLabel("Nome do cliente ausente ou ilegível no voucher. No contrato consta: “Ana Souza”."),
+      "Nome do cliente ausente ou ilegível no voucher",
+    );
+    assert.equal(
+      reasonLabel("Número do contrato não localizado no contrato anexado (o contrato validado no Coral é o FOR1-26). Confira o arquivo."),
+      "Número do contrato não localizado no contrato anexado",
+    );
+  });
+  it("agrupa o contrato fora do modelo padrão pela primeira frase, sem a lista de seções", () => {
+    assert.equal(
+      reasonLabel(
+        "O contrato anexado não está no modelo padrão da Foco. Não foram encontradas as seções: Dados do veículo, Preços de locação. Anexe o contrato de locação padrão da Foco, sem alterações.",
+      ),
+      "O contrato anexado não está no modelo padrão da Foco",
+    );
+  });
   it("agrupa o motivo de contrato divergente sem os números", () => {
     assert.equal(
       reasonLabel("O contrato anexado é o FOR1-26, mas o contrato validado no Coral é o FOR2-26. Anexe o contrato correto."),

@@ -11,6 +11,7 @@ import { createRequestSchema } from "@/lib/validators/request";
 import { requiresVoucher } from "@/lib/services/request-policy";
 import { checkContractAccess } from "@/lib/server/store-access";
 import { resolveContractStore } from "@/lib/stores";
+import { attachmentError } from "@/lib/server/attachment-check";
 import { wasAutoApproved } from "@/lib/services/request-status";
 export const maxDuration = 150;
 export async function GET() {
@@ -65,6 +66,8 @@ export async function POST(request: NextRequest) {
   if (!(contractFile instanceof File) || contractFile.size === 0) return apiError("Anexe o contrato (PDF ou imagem).");
   if (needsVoucher && (!(voucher instanceof File) || voucher.size === 0))
     return apiError("Anexe o voucher e o contrato (PDF ou imagem). Os dois arquivos são obrigatórios para desconsiderar DMA.");
+  const attachmentProblem = await attachmentError({ voucher: voucher instanceof File ? voucher : null, contract: contractFile });
+  if (attachmentProblem) return apiError(attachmentProblem);
   let coral;
   try {
     coral = await lookupContract(parsed.data.contractName);

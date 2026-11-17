@@ -10,6 +10,9 @@ import { personName } from "@/lib/person-name";
 import { DOCUMENT_ACCEPT } from "@/lib/document-types";
 import { requiredDocumentKinds, requiresVoucher } from "@/lib/services/request-policy";
 import { REQUEST_STATUS_LABELS } from "@/lib/services/request-status";
+import { describeDivergences, rejectionReasons } from "@/lib/services/rejection";
+import { SAME_FILE_MESSAGE, sameContent } from "@/lib/same-file";
+import { CONTRACT_PDF_ONLY_MESSAGE, looksLikePdf } from "@/lib/attachment-rules";
 import {
   PROCESSING_STATUSES,
   feedbackFlashKey,
@@ -70,6 +73,7 @@ auditLabels.AI_ANALYSIS_RETRIED = "Nova tentativa de análise solicitada";
 auditLabels.REQUEST_AUTO_APPROVED_EXECUTION_STARTED =
   "Aprovada automaticamente (voucher Rentalcars/Rentcars conferido); envio ao Coral iniciado";
 auditLabels.EXECUTION_RESULT_CONFIRMED = "Resultado conferido no Coral pelo administrador";
+auditLabels.REQUEST_FORCE_APPROVED = "Aprovação forçada pelo administrador (a solicitação estava recusada)";
 auditLabels.AI_ANALYSIS_SKIPPED = "Análise automática dispensada (Considerar DMA não exige voucher)";
 const requestStatusLabels: Record<string, string> = REQUEST_STATUS_LABELS;
 const auditDetailLabels: Record<string, string> = {
@@ -108,17 +112,20 @@ function auditValue(key: string, value: unknown): string {
     return value;
   }
   if (Array.isArray(value))
-    return value
-      .map((entry) => {
-        if (typeof entry === "string") return entry;
-        if (entry && typeof entry === "object") {
-          const attachment = entry as { kind?: string; fileName?: string };
-          if (attachment.kind && attachment.fileName)
-            return (attachment.kind === "VOUCHER" ? "Voucher: " : "Contrato: ") + attachment.fileName;
-        }
-        return JSON.stringify(entry);
-      })
-      .join(", ");
+    return (
+      value
+        .map((entry) => {
+          if (typeof entry === "string") return entry;
+          if (entry && typeof entry === "object") {
+            const attachment = entry as { kind?: string; fileName?: string };
+            if (attachment.kind && attachment.fileName)
+              return (attachment.kind === "VOUCHER" ? "Voucher: " : "Contrato: ") + attachment.fileName;
+          }
+          return JSON.stringify(entry);
+        })
+        // Os motivos já terminam em ponto; juntos por vírgula ficaria "correto., CPF".
+        .join(key === "reasons" ? " " : ", ")
+    );
   return value == null ? "Não informado" : JSON.stringify(value);
 }
 function auditDetails(details: Record<string, unknown> | null) {
@@ -194,7 +201,13 @@ export function RequestDetail() {
   function showLoaded(request: RequestItem) {
     setItem(request);
     if (pendingFeedback.current && !PROCESSING_STATUSES.includes(request.status)) {
-      setSuccess(submissionFeedback(pendingFeedback.current, request.status));
+      setSuccess(
+        submissionFeedback(
+          pendingFeedback.current,
+          request.status,
+          rejectionReasons({ version: request.version, auditEvents: request.auditEvents, decisions: [] }),
+        ),
+      );
       pendingFeedback.current = null;
     }
   }
@@ -318,6 +331,43 @@ export function RequestDetail() {
       setBusy(false);
     }
   }
+  async function forceApprove() {
+    if (!item) return;
+    const reasons = rejectionReasons({ version: item.version, auditEvents: item.auditEvents, decisions: item.decisions });
+    const justification = await askReason({
+      title: "Forçar a aprovação desta solicitação?",
+      description: `${reasons.length ? `Motivo da recusa: ${reasons.slice(0, 3).join(" ")} ` : ""}Ao aprovar, a ação será executada agora no Coral, mesmo com a recusa.`,
+      reasonLabel: "Justificativa da aprovação forçada",
+      reasonPlaceholder: "Ex.: conferido com o cliente; os dados do voucher estão corretos.",
+      confirmLabel: "Aprovar mesmo assim",
+      danger: true,
+    });
+    if (!justification) return;
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`/api/requests/${id}/force-approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ justification }),
+      });
+      const data = (await response.json()) as { error?: string; status?: string };
+      if (!data.status) throw new Error(data.error || "Não foi possível forçar a aprovação.");
+      setItem(await load());
+      router.refresh();
+      if (data.status === "COMPLETED") setSuccess("Aprovação forçada registrada e ação concluída no Coral.");
+      else if (data.status === "EXECUTION_UNCERTAIN")
+        setError(
+          `Aprovação forçada registrada, mas o Coral não confirmou o resultado. Não reenvie sem verificar no Coral. ${data.error || ""}`.trim(),
+        );
+      else setError(`Aprovação forçada registrada, mas o Coral recusou a ação. ${data.error || ""}`.trim());
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível forçar a aprovação.");
+    } finally {
+      setBusy(false);
+    }
+  }
   async function validateReopenContract(number: string) {
     setCheckingContract(true);
     setReopenContractValid("");
@@ -355,6 +405,14 @@ export function RequestDetail() {
     const needsVoucher = requiresVoucher(item?.actionType || "");
     if (!files.contract || (needsVoucher && !files.voucher)) {
       setError(needsVoucher ? "Anexe os dois documentos para reabrir a solicitação." : "Anexe o contrato para reabrir a solicitação.");
+      return;
+    }
+    if (!looksLikePdf(files.contract)) {
+      setError(CONTRACT_PDF_ONLY_MESSAGE);
+      return;
+    }
+    if (needsVoucher && files.voucher && (await sameContent(files.voucher, files.contract))) {
+      setError(SAME_FILE_MESSAGE);
       return;
     }
     if (
@@ -415,6 +473,8 @@ export function RequestDetail() {
   const currentRejection =
     item.status === "REJECTED" && lastDecision?.decision === "REJECT" && lastDecision.requestVersion === item.version ? lastDecision : null;
   const comparison = latest?.comparison;
+  const automaticReasons = rejectionReasons({ version: item.version, auditEvents: item.auditEvents, decisions: [] });
+  const divergences = describeDivergences(comparison?.fields);
   const currentDocs = item.documents.filter((doc) => doc.version === item.version);
   return (
     <main className="shell">
@@ -475,7 +535,31 @@ export function RequestDetail() {
       {latest?.status === "AUTO_REJECTED" && (
         <section className="panel">
           <h2>Recusa automática da validação documental</h2>
-          <p>{comparison?.summary || "A análise identificou informações ausentes ou ilegíveis nos documentos."}</p>
+          {automaticReasons.length ? (
+            <>
+              <p>
+                A análise encontrou {automaticReasons.length === 1 ? "este problema" : `${automaticReasons.length} problemas`} nos
+                documentos:
+              </p>
+              <ul className="reason-list">
+                {automaticReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p>{comparison?.summary || "A análise identificou informações ausentes ou ilegíveis nos documentos."}</p>
+          )}
+          {divergences.length > 0 && (
+            <>
+              <h3>Conferência campo a campo</h3>
+              <ul className="reason-list">
+                {divergences.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </>
+          )}
           <p className="subcell">
             {requiresVoucher(item.actionType)
               ? "Confira se o contrato anexado é o mesmo validado no Coral e envie documentos legíveis com nome completo e CPF do cliente nos dois documentos."
@@ -492,7 +576,7 @@ export function RequestDetail() {
               String(latest?.errorCode || item.auditEvents.find((event) => event.event === "AI_ANALYSIS_FAILED")?.details?.message || ""),
             )}
           </p>
-          <details>
+          <details open={admin}>
             <summary>Detalhe do erro</summary>
             <p className="subcell">
               {String(
@@ -539,7 +623,8 @@ export function RequestDetail() {
       </section>
       {latest && (
         <section className="panel">
-          <h2>Análise OpenRouter · {latest.model}</h2>
+          <h2>Análise documental automática</h2>
+          {admin && latest.model && <p className="subcell">Modelo de IA: {latest.model}</p>}
           <p>{comparison?.summary || (latest.errorCode ? analysisFailureMessage(latest.errorCode) : "A análise está em andamento.")}</p>
           {comparison?.confidence != null && <p>Confiança estimada: {Math.round(comparison.confidence * 100)}%</p>}
           {comparison?.fields?.length ? (
@@ -592,6 +677,18 @@ export function RequestDetail() {
       {admin && item.status === "PENDING_REVIEW" && (
         <section className="panel">
           <h2>Decisão do administrador</h2>
+          {divergences.length > 0 && (
+            <div className="notice error-notice" role="alert">
+              <div>
+                <strong>A análise apontou divergências entre o voucher e o contrato:</strong>
+                <ul className="reason-list">
+                  {divergences.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
           <label className="filter-field">
             Justificativa (obrigatória para recusa)
             <textarea value={justification} onChange={(event) => setJustification(event.target.value)} rows={4} />
@@ -602,6 +699,20 @@ export function RequestDetail() {
             </button>
             <button className="button danger" disabled={busy || !justification.trim()} onClick={() => decide("REJECT")}>
               Recusar e devolver
+            </button>
+          </div>
+        </section>
+      )}
+      {admin && item.status === "REJECTED" && (
+        <section className="panel">
+          <h2>Forçar aprovação</h2>
+          <p>
+            Esta solicitação foi recusada. Se, mesmo assim, a ação for válida, você pode aprová-la: a ação é executada no Coral, e a
+            justificativa informada, junto com os motivos da recusa, fica registrada no histórico.
+          </p>
+          <div className="form-actions">
+            <button className="button danger" disabled={busy} onClick={() => void forceApprove()}>
+              Aprovar mesmo assim
             </button>
           </div>
         </section>
@@ -667,9 +778,9 @@ export function RequestDetail() {
               />
             )}
             <FileAttachmentField
-              label="Novo contrato (PDF ou imagem)"
+              label="Novo contrato (somente PDF)"
               name="contract"
-              accept={DOCUMENT_ACCEPT}
+              accept="application/pdf,.pdf"
               file={files.contract || null}
               required
               onFileChange={(file) => setFiles((current) => ({ ...current, contract: file || undefined }))}

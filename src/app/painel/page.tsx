@@ -236,10 +236,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       change: change(totals.rejected, before?.rejected),
     },
     {
-      label: "Tempo de decisão",
+      label: "SLA",
       value: formatDuration(decision.medianSeconds),
       detail: decision.decisions
-        ? `Mediana no expediente (${BUSINESS_HOURS.label}) · média ${formatDuration(decision.averageSeconds)} · corrido ${formatDuration(decision.calendarMedianSeconds)} · ${decision.decisions} ${decision.decisions === 1 ? "decisão" : "decisões"}`
+        ? `Tempo de decisão do administrador · mediana no expediente (${BUSINESS_HOURS.label}) · média ${formatDuration(decision.averageSeconds)} · corrido ${formatDuration(decision.calendarMedianSeconds)} · ${decision.decisions} ${decision.decisions === 1 ? "decisão" : "decisões"}`
         : "Nenhuma decisão do administrador no período",
       change: decision.decisions ? change(decision.medianSeconds, previousDecision?.total.medianSeconds, formatDuration) : undefined,
     },
@@ -251,7 +251,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <div>
           <span className="eyebrow">Administração</span>
           <h1>Painel de acompanhamento</h1>
-          <p>Abertura de solicitações pelas lojas, aprovações, tempo de decisão e o que está parado.</p>
+          <p>Abertura de solicitações pelas lojas, aprovações, SLA e o que está parado.</p>
         </div>
         <div className="dashboard-heading-actions">
           <RefreshPageButton />
@@ -380,8 +380,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <h2>Por loja · {label}</h2>
             <p>
               Solicitações abertas no período, pela loja do contrato. Clique na loja para filtrar o painel. &quot;Agora&quot; mostra a
-              situação atual dessas solicitações; o tempo de decisão é a mediana no expediente ({BUSINESS_HOURS.label}) das decisões tomadas
-              no período.
+              situação atual dessas solicitações; o SLA é a mediana do tempo de decisão no expediente ({BUSINESS_HOURS.label}) das decisões
+              tomadas no período.
             </p>
           </div>
         </div>
@@ -397,7 +397,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 <th>% recusa</th>
                 <th>Aguardando agora</th>
                 <th>Atenção agora</th>
-                <th>Tempo de decisão</th>
+                <th>SLA</th>
               </tr>
             </thead>
             <tbody>

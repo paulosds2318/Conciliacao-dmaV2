@@ -1,19 +1,24 @@
 import type { ContractNumberCheck, DocumentComparison, DocumentIdentity, ReservationCheck } from "@/lib/integrations/openrouter";
+import { quote } from "@/lib/services/rejection";
 
 export function getIdentityRejectionReasons(identity: DocumentIdentity, reservation?: ReservationCheck) {
   // Basta CPF, nome ou código da reserva conferir entre voucher e contrato para seguir à aprovação do administrador.
   // O código da reserva cobre vouchers estrangeiros, que não trazem CPF.
   if (identity.cpfMatch === true || identity.nameMatch === true || reservation?.match === true) return [];
+  // Cada motivo diz o que faltou e, quando o outro documento traz o dado, o que foi lido nele.
   const reasons: string[] = [];
-  for (const [key, label] of [
-    ["voucher", "voucher"],
-    ["contract", "contrato"],
+  for (const [field, label] of [
+    ["name", "Nome"],
+    ["cpf", "CPF"],
   ] as const) {
-    const data = identity[key];
-    if (!data.name?.trim()) reasons.push(`Nome do cliente ausente ou ilegível no ${label}.`);
-    if (!data.cpf?.trim()) reasons.push(`CPF do cliente ausente ou ilegível no ${label}.`);
+    const voucher = identity.voucher[field]?.trim();
+    const contract = identity.contract[field]?.trim();
+    if (!voucher)
+      reasons.push(`${label} do cliente ausente ou ilegível no voucher.${contract ? ` No contrato consta: ${quote(contract)}.` : ""}`);
+    if (!contract)
+      reasons.push(`${label} do cliente ausente ou ilegível no contrato.${voucher ? ` No voucher consta: ${quote(voucher)}.` : ""}`);
   }
-  return [...new Set(reasons)];
+  return reasons;
 }
 
 /** APROVACAO_AUTOMATICA=false desliga a aprovação sem administrador na hora, sem novo deploy; ausente ou outro valor mantém ligada. */
@@ -65,7 +70,9 @@ export function isPartnerAutoApprovable(comparison: DocumentComparison) {
 
 export function getContractNumberRejectionReasons(check: ContractNumberCheck | undefined) {
   if (!check?.found)
-    return ["Número do contrato não localizado no contrato anexado. Confira se o arquivo é o contrato correto e está legível."];
+    return [
+      `Número do contrato não localizado no contrato anexado${check?.expected ? ` (o contrato validado no Coral é o ${check.expected})` : ""}. Confira se o arquivo é o contrato correto e está legível.`,
+    ];
   if (check.match === false)
     return [`O contrato anexado é o ${check.found}, mas o contrato validado no Coral é o ${check.expected}. Anexe o contrato correto.`];
   return [];

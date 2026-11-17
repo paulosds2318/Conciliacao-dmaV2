@@ -2,22 +2,43 @@ import { db } from "@/lib/db";
 import { applyDmaEligibility } from "@/lib/server/coral";
 
 type ApprovedRequest = { id: string; version: number; actionType: string; coralContractId: string };
-/** Quem aprovou: um administrador (com justificativa opcional) ou a aprovação automática (actorId null). */
-type Approval = { actorId: string; justification?: string | null } | { actorId: null; reason: string };
+/**
+ * Quem aprovou: um administrador (com justificativa opcional) ou a aprovação automática (actorId null).
+ * `forced` marca a aprovação forçada de uma solicitação recusada, com os motivos da recusa para o histórico.
+ */
+type Approval = { actorId: string; justification?: string | null; forced?: { reasons: string[] } } | { actorId: null; reason: string };
 
 export type ExecutionOutcome =
   { status: "COMPLETED"; execution: string } | { status: "EXECUTION_FAILED" | "EXECUTION_UNCERTAIN"; error: string };
 
-/** Move a solicitação de PENDING_REVIEW para EXECUTING e aplica a ação no Coral. Lança erro se outra decisão já foi registrada. */
+/**
+ * Move a solicitação de PENDING_REVIEW (ou de REJECTED, na aprovação forçada) para EXECUTING e aplica a ação no Coral.
+ * Lança erro se outra decisão já foi registrada.
+ */
 export async function executeApprovedRequest(item: ApprovedRequest, approval: Approval): Promise<ExecutionOutcome> {
   const attemptId = crypto.randomUUID();
   const idempotencyKey = crypto.randomUUID();
+  const forced = "forced" in approval ? approval.forced : undefined;
   await db.$transaction(async (tx) => {
     const changed = await tx.dmaRequest.updateMany({
-      where: { id: item.id, version: item.version, status: "PENDING_REVIEW" },
+      where: { id: item.id, version: item.version, status: forced ? "REJECTED" : "PENDING_REVIEW" },
       data: { status: "EXECUTING" },
     });
     if (!changed.count) throw new Error("A solicitação já recebeu uma decisão.");
+    if (forced && approval.actorId !== null)
+      await tx.auditEvent.create({
+        data: {
+          requestId: item.id,
+          actorId: approval.actorId,
+          event: "REQUEST_FORCE_APPROVED",
+          details: {
+            version: item.version,
+            previousStatus: "REJECTED",
+            justification: approval.justification || null,
+            reasons: forced.reasons,
+          },
+        },
+      });
     if (approval.actorId !== null)
       await tx.reviewDecision.create({
         data: {

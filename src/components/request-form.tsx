@@ -7,6 +7,8 @@ import { FileAttachmentField } from "@/components/file-attachment-field";
 import { DOCUMENT_ACCEPT, DOCUMENT_FORMATS_LABEL } from "@/lib/document-types";
 import { requiresVoucher } from "@/lib/services/request-policy";
 import { feedbackFlashKey } from "@/lib/services/request-feedback";
+import { SAME_FILE_MESSAGE, sameContent } from "@/lib/same-file";
+import { CONTRACT_PDF_ONLY_MESSAGE, looksLikePdf } from "@/lib/attachment-rules";
 
 type Removal = { kind: string; fileName: string; confirmed: true };
 
@@ -18,6 +20,8 @@ export function RequestForm() {
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  // A mensagem só tem estilo de sucesso quando é a confirmação da validação do contrato; erros de envio ficam em vermelho.
+  const [confirmation, setConfirmation] = useState(false);
   const [actionType, setActionType] = useState("");
   const [voucherFile, setVoucherFile] = useState<File | null>(null);
   const [contractFile, setContractFile] = useState<File | null>(null);
@@ -26,6 +30,7 @@ export function RequestForm() {
   async function validateContract() {
     setChecking(true);
     setValid(false);
+    setConfirmation(false);
     setMessage("");
     try {
       const response = await fetch(`/api/contracts?number=${encodeURIComponent(contract.trim())}`, { cache: "no-store" });
@@ -38,6 +43,7 @@ export function RequestForm() {
           "O Coral não retornou o identificador interno deste contrato. Não é possível abrir uma solicitação para ele agora.",
         );
       setValid(true);
+      setConfirmation(true);
       setMessage(`Contrato validado no Coral: ${data.contract.displayName || contract.trim()}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Falha ao validar contrato no Coral.");
@@ -48,6 +54,7 @@ export function RequestForm() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setConfirmation(false);
     setMessage("");
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -61,6 +68,14 @@ export function RequestForm() {
       setMessage("Anexe o voucher e o contrato. Os dois arquivos são obrigatórios para desconsiderar DMA.");
       return;
     }
+    if (!looksLikePdf(pdfContract)) {
+      setMessage(CONTRACT_PDF_ONLY_MESSAGE);
+      return;
+    }
+    if (needsVoucher && voucher instanceof File && (await sameContent(voucher, pdfContract))) {
+      setMessage(SAME_FILE_MESSAGE);
+      return;
+    }
     if (!needsVoucher) data.delete("voucher");
     if (!valid) {
       setMessage("Valide o contrato no Coral antes de enviar.");
@@ -70,7 +85,7 @@ export function RequestForm() {
       !(await confirmAction({
         title: "Enviar solicitação?",
         description: needsVoucher
-          ? "Voucher e contrato serão conferidos pela análise automática. Se tudo conferir, segue para aprovação do administrador; vouchers Rentalcars e Rentcars com todos os dados conferidos são aprovados automaticamente."
+          ? "Voucher e contrato serão conferidos pela análise automática. Se tudo conferir, segue para aprovação do administrador."
           : "O número do contrato anexado será conferido com o contrato validado no Coral. Se conferir, segue para aprovação do administrador.",
         confirmLabel: "Enviar para análise",
       }))
@@ -97,6 +112,7 @@ export function RequestForm() {
   }
 
   const pdfAccept = DOCUMENT_ACCEPT;
+  const contractAccept = "application/pdf,.pdf";
   const needsVoucher = requiresVoucher(actionType);
   return (
     <main className="shell">
@@ -112,8 +128,9 @@ export function RequestForm() {
       </header>
       <section className="panel">
         <div className="notice">
-          Desconsiderar DMA exige voucher e contrato; Considerar DMA exige somente o contrato ({DOCUMENT_FORMATS_LABEL}). O administrador
-          decide, exceto vouchers Rentalcars e Rentcars com todos os dados conferidos, que são aprovados automaticamente.
+          Desconsiderar DMA exige voucher e contrato; Considerar DMA exige somente o contrato. O contrato deve ser o PDF original do modelo
+          padrão da Foco, e o voucher pode ser PDF ou imagem. O administrador decide, exceto vouchers Rentalcars e Rentcars com todos os
+          dados conferidos, que são aprovados automaticamente.
         </div>
         <form className="request-form" onSubmit={submit}>
           <label className="filter-field">
@@ -139,6 +156,7 @@ export function RequestForm() {
               onChange={(event) => {
                 setContract(event.target.value);
                 setValid(false);
+                setConfirmation(false);
                 setMessage("");
               }}
               placeholder="Digite o número do contrato"
@@ -153,7 +171,7 @@ export function RequestForm() {
           >
             {checking ? "Consultando..." : "Validar contrato no Coral"}
           </button>
-          {message && <div className={`notice ${valid ? "" : "error-notice"}`}>{message}</div>}
+          {message && <div className={`notice ${confirmation ? "" : "error-notice"}`}>{message}</div>}
           <div className="filter-bar">
             {needsVoucher && (
               <FileAttachmentField
@@ -169,9 +187,9 @@ export function RequestForm() {
               />
             )}
             <FileAttachmentField
-              label="Contrato (PDF ou imagem)"
+              label="Contrato (somente PDF)"
               name="contract"
-              accept={pdfAccept}
+              accept={contractAccept}
               file={contractFile}
               required
               onFileChange={setContractFile}
@@ -181,8 +199,8 @@ export function RequestForm() {
             />
           </div>
           <p className="subcell">
-            Limite: {process.env.NEXT_PUBLIC_MAX_PDF_SIZE_MB || "20"} MB por arquivo. Formatos aceitos: {DOCUMENT_FORMATS_LABEL}. O formato
-            real será conferido no servidor.
+            Limite: {process.env.NEXT_PUBLIC_MAX_PDF_SIZE_MB || "20"} MB por arquivo. Formatos aceitos: voucher em {DOCUMENT_FORMATS_LABEL};
+            contrato somente em PDF. O formato real será conferido no servidor.
           </p>
           <button className="button primary" type="submit" disabled={busy || !valid}>
             {busy ? "Enviando e analisando…" : "Enviar para análise"}
