@@ -182,8 +182,9 @@ export const PARTNER_NAMES: Record<string, string> = {
 };
 
 /**
- * Parceiro bruto da última análise, na mesma ordem da aprovação automática: com texto no PDF vale a origem do texto;
- * senão a origem lida pela IA ou a primeira marca citada. A consulta agregada do painel repete esta regra em SQL.
+ * Parceiro bruto da última análise: com texto no PDF vale a origem do texto; sem ela (o texto só reconhece "Origem: X" e a Rentcars)
+ * ou sem texto, vale a origem lida pela IA ou a primeira marca citada. Só a exibição usa o recurso da IA; a aprovação automática
+ * continua decidindo apenas pelo texto. A consulta agregada do painel repete esta regra em SQL.
  */
 export function rawPartner(comparison: unknown, actionType: string) {
   if (actionType === "CONSIDERAR_DMA") return NO_VOUCHER_KEY;
@@ -195,8 +196,9 @@ export function rawPartner(comparison: unknown, actionType: string) {
     voucherBrands?: unknown;
   };
   const text = (value: unknown) => (typeof value === "string" ? value : null);
-  if (data.voucherTextAvailable === true) return text(data.voucherTextOrigin);
-  return text(data.voucherOrigin) ?? (Array.isArray(data.voucherBrands) ? text(data.voucherBrands[0]) : null);
+  const fromAi = text(data.voucherOrigin) ?? (Array.isArray(data.voucherBrands) ? text(data.voucherBrands[0]) : null);
+  if (data.voucherTextAvailable === true) return text(data.voucherTextOrigin) ?? fromAi;
+  return fromAi;
 }
 
 /** Nome do parceiro para exibição, juntando variações como "Rentalcars.com" e "rentalcars". */

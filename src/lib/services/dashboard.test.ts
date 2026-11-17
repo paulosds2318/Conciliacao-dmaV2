@@ -103,6 +103,16 @@ describe("parceiros", () => {
     );
     assert.equal(rawPartner({ voucherTextAvailable: false, voucherOrigin: "Booking" }, "DESCONSIDERAR_DMA"), "Booking");
     assert.equal(rawPartner({ voucherOrigin: null, voucherBrands: ["Decolar"] }, "DESCONSIDERAR_DMA"), "Decolar");
+    // O texto do PDF só reconhece "Origem: X" e a Rentcars: sem ele, vale o parceiro lido pela IA.
+    assert.equal(
+      rawPartner({ voucherTextAvailable: true, voucherTextOrigin: null, voucherOrigin: "Booking" }, "DESCONSIDERAR_DMA"),
+      "Booking",
+    );
+    assert.equal(
+      rawPartner({ voucherTextAvailable: true, voucherTextOrigin: null, voucherBrands: ["Decolar"] }, "DESCONSIDERAR_DMA"),
+      "Decolar",
+    );
+    assert.equal(rawPartner({ voucherTextAvailable: true, voucherTextOrigin: null }, "DESCONSIDERAR_DMA"), null);
     assert.equal(rawPartner(null, "DESCONSIDERAR_DMA"), null);
     assert.equal(rawPartner({ voucherOrigin: "Booking" }, "CONSIDERAR_DMA"), NO_VOUCHER_KEY);
   });

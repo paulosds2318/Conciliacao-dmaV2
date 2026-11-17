@@ -41,11 +41,13 @@ export function periodWhere(filters: DashboardFilters, partnerIds?: string[]): P
   };
 }
 
-/** Parceiro da última análise, na mesma ordem de `rawPartner`: origem do texto do PDF, origem lida pela IA ou primeira marca. */
+/** Parceiro da última análise, na mesma ordem de `rawPartner`: origem do texto do PDF, senão origem lida pela IA ou primeira marca. */
 const latestPartner = (alias: Prisma.Sql) => Prisma.sql`
   LEFT JOIN LATERAL (
-    SELECT CASE WHEN a.comparison->>'voucherTextAvailable' = 'true' THEN a.comparison->>'voucherTextOrigin'
-                ELSE coalesce(a.comparison->>'voucherOrigin', a.comparison->'voucherBrands'->>0) END AS partner
+    SELECT coalesce(
+             CASE WHEN a.comparison->>'voucherTextAvailable' = 'true' THEN nullif(btrim(a.comparison->>'voucherTextOrigin'), '') END,
+             nullif(btrim(a.comparison->>'voucherOrigin'), ''),
+             nullif(btrim(a.comparison->'voucherBrands'->>0), '')) AS partner
     FROM ai_analyses a WHERE a."requestId" = ${alias}.id ORDER BY a."createdAt" DESC LIMIT 1
   ) latest ON TRUE`;
 
