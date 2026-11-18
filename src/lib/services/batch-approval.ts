@@ -11,6 +11,13 @@ export const MAX_CONSECUTIVE_CORAL_FAILURES = 2;
 
 export type ApproveResult = { ok: true } | { ok: false; message: string; coral: boolean; uncertain: boolean };
 export type BatchItem = { id: string; label: string };
+/** Situação de cada solicitação no acompanhamento do lote. */
+export type BatchStep =
+  | { state: "waiting" }
+  | { state: "running" }
+  | { state: "approved" }
+  | { state: "failed"; message: string; uncertain: boolean }
+  | { state: "skipped" };
 export type BatchFailure = BatchItem & { message: string; uncertain: boolean };
 export type BatchOutcome = {
   approved: BatchItem[];
@@ -31,7 +38,12 @@ export function interpretDecisionResponse(status: number, body: { error?: string
 export async function runBatchApproval(
   items: BatchItem[],
   approveOne: (id: string) => Promise<ApproveResult>,
-  hooks: { shouldStop: () => boolean; onProgress: (done: number, current: BatchItem | null) => void },
+  hooks: {
+    shouldStop: () => boolean;
+    onProgress: (done: number, current: BatchItem | null) => void;
+    /** Chamado a cada mudança de situação de uma solicitação: em andamento, aprovada, com problema ou não processada. */
+    onItem?: (item: BatchItem, step: BatchStep) => void;
+  },
 ): Promise<BatchOutcome> {
   const outcome: BatchOutcome = { approved: [], failed: [], notProcessed: [], stoppedBy: null };
   let consecutiveCoralFailures = 0;
@@ -39,9 +51,11 @@ export async function runBatchApproval(
     if (outcome.stoppedBy === null && hooks.shouldStop()) outcome.stoppedBy = "user";
     if (outcome.stoppedBy) {
       outcome.notProcessed.push(item);
+      hooks.onItem?.(item, { state: "skipped" });
       continue;
     }
     hooks.onProgress(index, item);
+    hooks.onItem?.(item, { state: "running" });
     let result: ApproveResult;
     try {
       result = await approveOne(item.id);
@@ -56,10 +70,12 @@ export async function runBatchApproval(
     }
     if (result.ok) {
       outcome.approved.push(item);
+      hooks.onItem?.(item, { state: "approved" });
       consecutiveCoralFailures = 0;
       continue;
     }
     outcome.failed.push({ ...item, message: result.message, uncertain: result.uncertain });
+    hooks.onItem?.(item, { state: "failed", message: result.message, uncertain: result.uncertain });
     consecutiveCoralFailures = result.coral ? consecutiveCoralFailures + 1 : 0;
     if (consecutiveCoralFailures >= MAX_CONSECUTIVE_CORAL_FAILURES) outcome.stoppedBy = "coral";
   }
@@ -98,6 +114,26 @@ export function batchConfirmation(rows: RowLike[]) {
       : `Serão aprovadas ${summary.total} solicitações (${byAction}). A ação é executada no Coral para cada uma, uma de cada vez, e não dá para desfazer por aqui.${warning} Se o Coral falhar duas vezes seguidas, o lote é interrompido. Mantenha esta página aberta até terminar.`,
     confirmLabel: `Aprovar ${summary.total}`,
     danger: summary.withDivergence > 0,
+  };
+}
+
+/** Duração em texto curto: "45 s" ou "2 min 10 s". */
+export function durationLabel(ms: number) {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  return seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, "0")} s`;
+}
+
+/** Contagens do acompanhamento: aprovadas, com problema, em andamento, aguardando e não processadas. */
+export function batchCounts(steps: BatchStep[]) {
+  const count = (state: BatchStep["state"]) => steps.filter((step) => step.state === state).length;
+  return {
+    total: steps.length,
+    approved: count("approved"),
+    failed: count("failed"),
+    running: count("running"),
+    waiting: count("waiting"),
+    skipped: count("skipped"),
+    finished: count("approved") + count("failed") + count("skipped"),
   };
 }
 

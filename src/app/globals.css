@@ -2308,3 +2308,40 @@ div.dashboard-metric:hover {
 .batch-result p {
   margin: 0;
 }
+
+/* Página da aprovação em lote. */
+.batch-bar-track {
+  height: 10px;
+  margin-top: 10px;
+  overflow: hidden;
+  background: var(--line);
+  border-radius: 999px;
+}
+.batch-bar-fill {
+  height: 100%;
+  background: var(--foco-red, #d71920);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.batch-status.ok {
+  color: #15803d;
+}
+.batch-status.bad {
+  color: #b91c1c;
+}
+.batch-status.warn {
+  color: var(--foco-amber);
+}
+:root[data-theme="dark"] .batch-status.ok {
+  color: #4ade80;
+}
+:root[data-theme="dark"] .batch-status.bad {
+  color: #fca5a5;
+}
+:root[data-theme="dark"] .batch-status.warn {
+  color: #fcd34d;
+}
+.batch-detail-cell {
+  white-space: normal;
+  min-width: 240px;
+}

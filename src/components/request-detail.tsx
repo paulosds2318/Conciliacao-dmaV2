@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/lib/auth-client";
 import { RequestManagement } from "@/components/request-management";
 import { FileAttachmentField } from "@/components/file-attachment-field";
+import { checkAttachment } from "@/lib/check-attachment";
 import { useConfirmation, useReasonPrompt } from "@/components/confirmation-provider";
 import { personName } from "@/lib/person-name";
 import { DOCUMENT_ACCEPT } from "@/lib/document-types";
@@ -772,6 +773,7 @@ export function RequestDetail() {
                 file={files.voucher || null}
                 required
                 onFileChange={(file) => setFiles((current) => ({ ...current, voucher: file || undefined }))}
+                validate={(file) => checkAttachment("VOUCHER", file, files.contract)}
                 onRemove={(file) =>
                   setRemovedAttachments((current) => [...current, { kind: "VOUCHER", fileName: file.name, confirmed: true }])
                 }
@@ -784,6 +786,7 @@ export function RequestDetail() {
               file={files.contract || null}
               required
               onFileChange={(file) => setFiles((current) => ({ ...current, contract: file || undefined }))}
+              validate={(file) => checkAttachment("CONTRACT", file, requiresVoucher(item.actionType) ? files.voucher : null)}
               onRemove={(file) =>
                 setRemovedAttachments((current) => [...current, { kind: "CONTRACT", fileName: file.name, confirmed: true }])
               }

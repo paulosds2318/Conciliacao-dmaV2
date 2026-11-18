@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   MAX_CONSECUTIVE_CORAL_FAILURES,
   batchConfirmation,
+  batchCounts,
+  durationLabel,
   batchSummary,
   hasDivergence,
   interpretDecisionResponse,
@@ -151,5 +153,36 @@ describe("resumo do lote", () => {
     assert.deepEqual(batchSummary(rows), { total: 4, considerar: 1, desconsiderar: 3, withDivergence: 1 });
     assert.equal(hasDivergence(rows[1]), true);
     assert.equal(hasDivergence(rows[3]), false);
+  });
+});
+
+describe("acompanhamento do lote", () => {
+  it("avisa a situação de cada solicitação: em andamento, aprovada, com problema e não processada", async () => {
+    const events: string[] = [];
+    const list = [1, 2, 3, 4].map((n) => ({ id: `r${n}`, label: `C${n}` }));
+    const result = async (id: string): Promise<ApproveResult> =>
+      id === "r2" ? { ok: false, message: "Coral recusou", coral: false, uncertain: false } : { ok: true };
+    let stop = false;
+    await runBatchApproval(list, result, {
+      shouldStop: () => stop,
+      onProgress: (done) => {
+        if (done === 2) stop = true;
+      },
+      onItem: (item, step) => events.push(`${item.id}:${step.state}`),
+    });
+    assert.deepEqual(events, ["r1:running", "r1:approved", "r2:running", "r2:failed", "r3:running", "r3:approved", "r4:skipped"]);
+  });
+  it("conta e mede o tempo do lote", () => {
+    const counts = batchCounts([
+      { state: "approved" },
+      { state: "failed", message: "x", uncertain: false },
+      { state: "running" },
+      { state: "waiting" },
+      { state: "skipped" },
+    ]);
+    assert.deepEqual(counts, { total: 5, approved: 1, failed: 1, running: 1, waiting: 1, skipped: 1, finished: 3 });
+    assert.equal(durationLabel(45_000), "45 s");
+    assert.equal(durationLabel(130_000), "2 min 10 s");
+    assert.equal(durationLabel(-5), "0 s");
   });
 });

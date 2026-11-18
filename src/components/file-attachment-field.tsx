@@ -11,13 +11,51 @@ type Props = {
   disabled?: boolean;
   onFileChange: (file: File | null) => void;
   onRemove?: (file: File) => void;
+  /** Confere o arquivo assim que é escolhido. Devolve a mensagem do problema (o arquivo é descartado e a mensagem aparece abaixo do campo) ou null. */
+  validate?: (file: File) => Promise<string | null>;
 };
 
-export function FileAttachmentField({ label, name, accept, file, required = false, disabled = false, onFileChange, onRemove }: Props) {
+export function FileAttachmentField({
+  label,
+  name,
+  accept,
+  file,
+  required = false,
+  disabled = false,
+  onFileChange,
+  onRemove,
+  validate,
+}: Props) {
   const confirmAction = useConfirmation();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [removedHistory, setRemovedHistory] = useState<string[]>([]);
+  const [problem, setProblem] = useState("");
+  const [checking, setChecking] = useState(false);
+
+  async function choose(chosen: File | null) {
+    setProblem("");
+    if (!chosen || !validate) {
+      onFileChange(chosen);
+      return;
+    }
+    setChecking(true);
+    let message: string | null = null;
+    try {
+      message = await validate(chosen);
+    } catch {
+      // Sem conseguir conferir agora, o arquivo segue e a conferência do envio decide.
+    } finally {
+      setChecking(false);
+    }
+    if (message) {
+      // O arquivo recusado não fica anexado.
+      if (inputRef.current) inputRef.current.value = "";
+      onFileChange(null);
+      setProblem(message);
+      return;
+    }
+    onFileChange(chosen);
+  }
 
   async function confirmRemoval() {
     if (!file) return;
@@ -32,7 +70,6 @@ export function FileAttachmentField({ label, name, accept, file, required = fals
     if (inputRef.current) inputRef.current.value = "";
     onFileChange(null);
     onRemove?.(removedFile);
-    setRemovedHistory((current) => [...current, removedFile.name]);
   }
 
   return (
@@ -46,9 +83,16 @@ export function FileAttachmentField({ label, name, accept, file, required = fals
         accept={accept}
         required={required && !file}
         // Selected files must remain enabled so the browser includes them in FormData.
-        disabled={disabled}
-        onChange={(event) => onFileChange(event.target.files?.[0] || null)}
+        disabled={disabled || checking}
+        aria-invalid={problem ? true : undefined}
+        onChange={(event) => void choose(event.target.files?.[0] || null)}
       />
+      {checking && <p className="subcell">Conferindo o arquivo…</p>}
+      {problem && (
+        <div className="notice error-notice" role="alert">
+          {problem}
+        </div>
+      )}
       {file && (
         <div className="attachment-selected">
           <span title={file.name}>{file.name}</span>
@@ -56,13 +100,6 @@ export function FileAttachmentField({ label, name, accept, file, required = fals
             Remover anexo
           </button>
         </div>
-      )}
-      {removedHistory.length > 0 && (
-        <ul className="attachment-removal-history" aria-label="Anexos removidos">
-          {removedHistory.map((removed, index) => (
-            <li key={`${removed}-${index}`}>Removido após confirmação: {removed}</li>
-          ))}
-        </ul>
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import { DOCUMENT_ACCEPT, DOCUMENT_FORMATS_LABEL } from "@/lib/document-types";
 import { requiresVoucher } from "@/lib/services/request-policy";
 import { feedbackFlashKey } from "@/lib/services/request-feedback";
 import { SAME_FILE_MESSAGE, sameContent } from "@/lib/same-file";
+import { checkAttachment } from "@/lib/check-attachment";
 import { CONTRACT_PDF_ONLY_MESSAGE, looksLikePdf } from "@/lib/attachment-rules";
 
 type Removal = { kind: string; fileName: string; confirmed: true };
@@ -129,8 +130,8 @@ export function RequestForm() {
       <section className="panel">
         <div className="notice">
           Desconsiderar DMA exige voucher e contrato; Considerar DMA exige somente o contrato. O contrato deve ser o PDF original do modelo
-          padrão da Foco, e o voucher pode ser PDF ou imagem. O administrador decide, exceto vouchers Rentalcars e Rentcars com todos os
-          dados conferidos, que são aprovados automaticamente.
+          padrão da Foco, e o voucher pode ser PDF ou imagem. O voucher precisa estar legível e mostrar o nome do cliente. Os arquivos são
+          conferidos assim que anexados: um contrato fora do modelo, ou um contrato no campo do voucher, não é aceito.
         </div>
         <form className="request-form" onSubmit={submit}>
           <label className="filter-field">
@@ -181,6 +182,7 @@ export function RequestForm() {
                 file={voucherFile}
                 required
                 onFileChange={setVoucherFile}
+                validate={(file) => checkAttachment("VOUCHER", file, contractFile)}
                 onRemove={(file) =>
                   setRemovedAttachments((current) => [...current, { kind: "VOUCHER", fileName: file.name, confirmed: true }])
                 }
@@ -193,6 +195,7 @@ export function RequestForm() {
               file={contractFile}
               required
               onFileChange={setContractFile}
+              validate={(file) => checkAttachment("CONTRACT", file, needsVoucher ? voucherFile : null)}
               onRemove={(file) =>
                 setRemovedAttachments((current) => [...current, { kind: "CONTRACT", fileName: file.name, confirmed: true }])
               }

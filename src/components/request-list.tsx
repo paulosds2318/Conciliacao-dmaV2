@@ -1,20 +1,13 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { RequestAuditList } from "@/components/request-audit-list";
 import { useConfirmation } from "@/components/confirmation-provider";
 import { personName } from "@/lib/person-name";
 import { REQUEST_STATUS_LABELS } from "@/lib/services/request-status";
-import {
-  BATCH_JUSTIFICATION,
-  MAX_BATCH_SIZE,
-  batchConfirmation,
-  hasDivergence,
-  interpretDecisionResponse,
-  runBatchApproval,
-  type ApproveResult,
-  type BatchOutcome,
-} from "@/lib/services/batch-approval";
+import { MAX_BATCH_SIZE, batchConfirmation, hasDivergence } from "@/lib/services/batch-approval";
+import { newBatchState, saveBatchState } from "@/lib/services/batch-session";
 
 type RequestRow = {
   id: string;
@@ -69,19 +62,8 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);
   const confirm = useConfirmation();
+  const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [batchRun, setBatchRun] = useState<{ done: number; total: number; current: string } | null>(null);
-  const [batchResult, setBatchResult] = useState<BatchOutcome | null>(null);
-  const stopRequested = useRef(false);
-  const [stopping, setStopping] = useState(false);
-  const running = batchRun !== null;
-  // Com o lote em andamento, sair da página interromperia a fila no meio.
-  useEffect(() => {
-    if (!running) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [running]);
   useEffect(() => {
     if (!actionMessage) return;
     const timeout = window.setTimeout(() => setActionMessage(""), 4000);
@@ -179,36 +161,14 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
   function selectAllFiltered() {
     setSelected(new Set(selectableRows.slice(0, MAX_BATCH_SIZE).map((item) => item.id)));
   }
-  async function approveOne(id: string): Promise<ApproveResult> {
-    const response = await fetch(`/api/requests/${id}/decision`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision: "APPROVE", justification: BATCH_JUSTIFICATION }),
-    });
-    const body = (await response.json().catch(() => null)) as { error?: string; status?: string } | null;
-    return interpretDecisionResponse(response.status, body);
-  }
   async function startBatch() {
     const rows = selectedRows;
-    if (!rows.length || running) return;
+    if (!rows.length) return;
     const confirmed = await confirm(batchConfirmation(rows));
     if (!confirmed) return;
-    stopRequested.current = false;
-    setStopping(false);
-    setBatchResult(null);
-    setBatchRun({ done: 0, total: rows.length, current: rows[0].contractName });
-    const outcome = await runBatchApproval(
-      rows.map((item) => ({ id: item.id, label: item.contractName })),
-      approveOne,
-      {
-        shouldStop: () => stopRequested.current,
-        onProgress: (done, current) => setBatchRun({ done, total: rows.length, current: current?.label ?? "" }),
-      },
-    );
-    setBatchRun(null);
-    setBatchResult(outcome);
-    setSelected(new Set());
-    window.dispatchEvent(new Event("app:refresh"));
+    // A página do lote executa a aprovação e mostra o andamento e o resultado de cada solicitação.
+    saveBatchState(newBatchState(rows.map((item) => ({ id: item.id, label: item.contractName, actionType: item.actionType }))));
+    router.push("/analise/lote");
   }
   async function exportExcel() {
     try {
@@ -389,61 +349,9 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
             {actionMessage}
           </div>
         )}
-        {batchResult && (
-          <div className={`notice batch-result ${batchResult.failed.length || batchResult.stoppedBy ? "error-notice" : ""}`} role="status">
-            <div>
-              <strong>
-                {batchResult.approved.length} {batchResult.approved.length === 1 ? "aprovada" : "aprovadas"}
-                {batchResult.failed.length > 0 && ` · ${batchResult.failed.length} com problema`}
-                {batchResult.notProcessed.length > 0 && ` · ${batchResult.notProcessed.length} não processadas`}
-              </strong>
-              {batchResult.stoppedBy === "coral" && (
-                <p>
-                  O lote foi interrompido porque o Coral falhou duas vezes seguidas. As demais não foram processadas e continuam pendentes.
-                </p>
-              )}
-              {batchResult.stoppedBy === "user" && (
-                <p>Lote interrompido por você. As demais não foram processadas e continuam pendentes.</p>
-              )}
-              {batchResult.failed.length > 0 && (
-                <ul className="reason-list">
-                  {batchResult.failed.map((item) => (
-                    <li key={item.id}>
-                      <strong>{item.label}</strong>: {item.message}
-                      {item.uncertain && " Não reenvie: confira o contrato no Coral."} <Link href={`/solicitacoes/${item.id}`}>Abrir</Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <button className="button secondary" type="button" onClick={() => setBatchResult(null)}>
-                Fechar
-              </button>
-            </div>
-          </div>
-        )}
         {batchEnabled && (
           <div className="batch-bar" role="region" aria-label="Aprovação em lote">
-            {batchRun ? (
-              <>
-                <span aria-live="polite">
-                  <strong>
-                    Aprovando {Math.min(batchRun.done + 1, batchRun.total)} de {batchRun.total}
-                  </strong>
-                  {batchRun.current ? `: ${batchRun.current}` : ""}…
-                </span>
-                <button
-                  className="button secondary"
-                  type="button"
-                  disabled={stopping}
-                  onClick={() => {
-                    stopRequested.current = true;
-                    setStopping(true);
-                  }}
-                >
-                  {stopping ? "Parando após esta…" : "Parar após esta"}
-                </button>
-              </>
-            ) : (
+            {
               <>
                 <span>
                   <strong>{selectedRows.length}</strong> {selectedRows.length === 1 ? "selecionada" : "selecionadas"}
@@ -462,10 +370,10 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
                   </button>
                 )}
               </>
-            )}
+            }
           </div>
         )}
-        {batchEnabled && anyDivergence && !running && (
+        {batchEnabled && anyDivergence && (
           <p className="subcell">
             As solicitações com divergência apontada pela IA ficam de fora do “marcar todas”. Marque uma a uma se quiser incluí-las.
           </p>
@@ -543,7 +451,7 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
                       type="checkbox"
                       aria-label="Marcar todas as solicitações desta página sem divergência"
                       checked={allShownSelected}
-                      disabled={!shownSelectable.length || running}
+                      disabled={!shownSelectable.length}
                       onChange={togglePage}
                     />
                   </th>
@@ -565,7 +473,6 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
                         type="checkbox"
                         aria-label={`Selecionar ${item.contractName}`}
                         checked={selected.has(item.id)}
-                        disabled={running}
                         onChange={() => toggleRow(item.id)}
                       />
                     </td>

@@ -95,3 +95,18 @@ describe("looksLikePdf", () => {
     assert.equal(looksLikePdf({ name: "foto.png", type: "image/png" }), false);
   });
 });
+
+describe("attachmentError: conferência de um anexo só, ao escolher o arquivo", () => {
+  it("só o contrato: confere o modelo", async () => {
+    assert.equal(await attachmentError({ voucher: null, contract: pdf(CONTRACT, "contrato.pdf") }), null);
+    assert.match((await attachmentError({ voucher: null, contract: pdf(VOUCHER, "contrato.pdf") })) ?? "", /não está no modelo padrão/);
+  });
+  it("só o voucher: barra o contrato, deixa passar o voucher de verdade e a imagem", async () => {
+    assert.equal(await attachmentError({ voucher: pdf(CONTRACT, "contrato.pdf"), contract: null }), VOUCHER_IS_CONTRACT_MESSAGE);
+    assert.equal(await attachmentError({ voucher: pdf(VOUCHER, "voucher.pdf"), contract: null }), null);
+    assert.equal(await attachmentError({ voucher: png("voucher.png"), contract: null }), null);
+  });
+  it("nenhum arquivo: nada a conferir", async () => {
+    assert.equal(await attachmentError({ voucher: null, contract: null }), null);
+  });
+});
