@@ -9,8 +9,7 @@ const prefixes: Record<SubmissionKind, string> = {
 
 const outcomes: Record<string, string> = {
   PENDING_REVIEW: "Os documentos conferem e a solicitação está aguardando aprovação do administrador.",
-  COMPLETED:
-    "Os documentos conferem e a solicitação foi aprovada automaticamente (voucher Rentalcars/Rentcars). A ação foi concluída no Coral.",
+  COMPLETED: "Os documentos conferem e a solicitação foi aprovada automaticamente. A ação foi concluída no Coral.",
   EXECUTING: "Os documentos conferem e a solicitação foi aprovada automaticamente. A ação está sendo executada no Coral.",
   EXECUTION_FAILED:
     "Os documentos conferem e a solicitação foi aprovada automaticamente, mas o Coral recusou a ação. Consulte o detalhe no histórico.",

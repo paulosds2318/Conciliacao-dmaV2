@@ -71,8 +71,7 @@ const auditLabels: Record<string, string> = {
   REQUEST_ARCHIVED: "Solicitação arquivada / excluída",
 };
 auditLabels.AI_ANALYSIS_RETRIED = "Nova tentativa de análise solicitada";
-auditLabels.REQUEST_AUTO_APPROVED_EXECUTION_STARTED =
-  "Aprovada automaticamente (voucher Rentalcars/Rentcars conferido); envio ao Coral iniciado";
+auditLabels.REQUEST_AUTO_APPROVED_EXECUTION_STARTED = "Aprovada automaticamente; envio ao Coral iniciado";
 auditLabels.EXECUTION_RESULT_CONFIRMED = "Resultado conferido no Coral pelo administrador";
 auditLabels.REQUEST_FORCE_APPROVED = "Aprovação forçada pelo administrador (a solicitação estava recusada)";
 auditLabels.AI_ANALYSIS_SKIPPED = "Análise automática dispensada (Considerar DMA não exige voucher)";
@@ -652,10 +651,7 @@ export function RequestDetail() {
               </table>
             </div>
           ) : null}
-          <p className="subcell">
-            A análise automática é auxiliar: a aprovação é do administrador, exceto vouchers Rentalcars e Rentcars com todos os dados
-            conferidos, aprovados automaticamente.
-          </p>
+          <p className="subcell">A análise automática é auxiliar: a aprovação é do administrador.</p>
         </section>
       )}
       {admin && item.status === "EXECUTION_UNCERTAIN" && (
@@ -723,8 +719,7 @@ export function RequestDetail() {
           <h2>{item.status === "ANALYSIS_FAILED" ? "Corrigir e reenviar para análise" : "Corrigir e reabrir"}</h2>
           <p>
             Informe o que está corrigindo e envie novamente {requiresVoucher(item.actionType) ? "os dois documentos" : "o contrato"}. O
-            histórico será mantido. Se tudo conferir, segue para aprovação do administrador; vouchers Rentalcars e Rentcars com todos os
-            dados conferidos são aprovados automaticamente.
+            histórico será mantido. Se tudo conferir, segue para aprovação do administrador.
           </p>
           <form className="request-form" onSubmit={correct}>
             <label className="filter-field">

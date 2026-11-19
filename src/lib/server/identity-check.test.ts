@@ -8,6 +8,7 @@ import {
   getIdentityRejectionReasons,
   isAutoApprovalOrigin,
   isPartnerAutoApprovable,
+  NO_IDENTITY_MATCH_REASON,
 } from "./identity-check.ts";
 
 /** Voucher Rentcars em PDF com texto, contrato certo e cliente conferido: o caso que passa direto. */
@@ -137,9 +138,24 @@ describe("motivos de recusa automática", () => {
   it("aponta dados ausentes quando nada confere", () => {
     const identity = { voucher: { name: null, cpf: null }, contract: { name: "FULANO", cpf: null }, cpfMatch: null, nameMatch: null };
     const reasons = getIdentityRejectionReasons(identity);
+    assert.equal(reasons[0], NO_IDENTITY_MATCH_REASON);
     assert.ok(reasons.includes("Nome do cliente ausente ou ilegível no voucher. No contrato consta: “FULANO”."));
-    assert.ok(reasons.includes("CPF do cliente ausente ou ilegível no voucher."));
-    assert.ok(reasons.includes("CPF do cliente ausente ou ilegível no contrato."));
+    assert.ok(reasons.includes("CPF do cliente não encontrado no voucher nem no contrato."));
+  });
+  it("mostra o que está divergente além do dado que falta (caso real: reserva e nome diferentes, CPF ausente nos dois)", () => {
+    const identity = {
+      voucher: { name: "Rodrigo Duarte", cpf: null },
+      contract: { name: "KARLHEINZ KLOOS", cpf: null },
+      cpfMatch: null,
+      nameMatch: false,
+    };
+    const reservation = { voucher: "R1566219-25", contract: "R1607335-25", match: false };
+    assert.deepEqual(getIdentityRejectionReasons(identity, reservation), [
+      NO_IDENTITY_MATCH_REASON,
+      "Código da reserva diverge entre voucher e contrato. No voucher consta “R1566219-25” e no contrato “R1607335-25”.",
+      "Nome do cliente diverge entre voucher e contrato. No voucher consta “Rodrigo Duarte” e no contrato “KARLHEINZ KLOOS”.",
+      "CPF do cliente não encontrado no voucher nem no contrato.",
+    ]);
   });
   it("diz o que foi lido no outro documento quando só um dos lados falta", () => {
     const identity = {
@@ -149,6 +165,7 @@ describe("motivos de recusa automática", () => {
       nameMatch: null,
     };
     assert.deepEqual(getIdentityRejectionReasons(identity), [
+      NO_IDENTITY_MATCH_REASON,
       "Nome do cliente ausente ou ilegível no contrato. No voucher consta: “ANA SOUZA”.",
       "CPF do cliente ausente ou ilegível no contrato. No voucher consta: “111.111.111-11”.",
     ]);

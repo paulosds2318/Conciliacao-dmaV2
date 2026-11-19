@@ -23,6 +23,8 @@ Ao confirmar, abre a página do lote (`/analise/lote`), no mesmo estilo da pági
 
 ## Motivos da recusa automática
 
+Na recusa por dados de identificação (CPF, nome e código da reserva), o primeiro motivo explica a regra (nenhum desses dados confere) e vêm em seguida o que está divergente, com o valor lido no voucher e no contrato (código da reserva, nome, CPF), e o que não foi encontrado em um ou nos dois documentos. A recusa continua acontecendo só quando falta algum dado; divergência com todos os dados presentes segue para o administrador.
+
 A recusa automática diz o que faltou e o que foi lido no outro documento, por exemplo: `Nome do cliente ausente ou ilegível no voucher. No contrato consta: “MARIA SOUZA”.` Os motivos ficam no evento `AI_AUTO_REJECTED` (`details.reasons`) e aparecem na tela da solicitação e na mensagem ao atendente depois do envio. A tela também mostra a conferência campo a campo, com os valores lidos em cada documento. Quando voucher e contrato trazem os dois dados e eles divergem, a solicitação não é recusada: segue para o administrador, com as divergências destacadas na tela de decisão.
 
 ## Anexos: contrato padrão em PDF e voucher que não seja contrato

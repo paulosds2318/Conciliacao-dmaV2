@@ -51,8 +51,7 @@ export function RetryAnalysisControl() {
     if (
       !(await confirmAction({
         title: "Tentar a análise novamente?",
-        description:
-          "Os documentos já enviados serão analisados novamente. Se tudo conferir, segue para aprovação do administrador; vouchers Rentalcars e Rentcars com todos os dados conferidos são aprovados automaticamente.",
+        description: "Os documentos já enviados serão analisados novamente. Se tudo conferir, segue para aprovação do administrador.",
         confirmLabel: "Tentar novamente",
       }))
     )

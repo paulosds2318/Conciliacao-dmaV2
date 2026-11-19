@@ -220,7 +220,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     {
       label: "Aprovadas automaticamente",
       value: String(totals.autoApproved),
-      detail: `${percent(totals.autoApproved, totals.opened)} das abertas · Rentalcars e Rentcars`,
+      detail: `${percent(totals.autoApproved, totals.opened)} das abertas`,
       change: change(totals.autoApproved, before?.autoApproved),
     },
     {

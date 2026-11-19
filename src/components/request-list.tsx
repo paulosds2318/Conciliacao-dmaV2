@@ -225,7 +225,7 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
               ? "Recusada"
               : "",
         item.autoApproved ? "Sistema" : decision?.reviewer?.name || "",
-        item.autoApproved ? "Voucher Rentalcars/Rentcars com dados do cliente conferidos com o contrato." : decision?.justification || "",
+        item.autoApproved ? "Aprovada automaticamente, com dados do cliente conferidos com o contrato." : decision?.justification || "",
         dateLabel(item.createdAt),
         dateLabel(item.updatedAt),
       ];
@@ -487,7 +487,7 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
                         ? "Recusada automaticamente pela IA - correção disponível"
                         : labels[item.status] || item.status}
                     </span>
-                    {item.autoApproved && <small className="subcell">Aprovada automaticamente (voucher Rentalcars/Rentcars)</small>}
+                    {item.autoApproved && <small className="subcell">Aprovada automaticamente</small>}
                     {batchEnabled && hasDivergence(item) && (
                       <small className="subcell batch-warning">
                         <span aria-hidden="true">⚠</span> A IA apontou divergência entre voucher e contrato

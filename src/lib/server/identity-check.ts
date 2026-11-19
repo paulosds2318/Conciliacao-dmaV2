@@ -1,24 +1,48 @@
 import type { ContractNumberCheck, DocumentComparison, DocumentIdentity, ReservationCheck } from "@/lib/integrations/openrouter";
 import { quote } from "@/lib/services/rejection";
 
+export const NO_IDENTITY_MATCH_REASON =
+  "Nenhum dado de identificação do cliente confere entre voucher e contrato: é preciso que o CPF, o nome ou o código da reserva confiram.";
+
 export function getIdentityRejectionReasons(identity: DocumentIdentity, reservation?: ReservationCheck) {
   // Basta CPF, nome ou código da reserva conferir entre voucher e contrato para seguir à aprovação do administrador.
   // O código da reserva cobre vouchers estrangeiros, que não trazem CPF.
   if (identity.cpfMatch === true || identity.nameMatch === true || reservation?.match === true) return [];
-  // Cada motivo diz o que faltou e, quando o outro documento traz o dado, o que foi lido nele.
-  const reasons: string[] = [];
+  // A recusa automática acontece quando falta dado em algum documento. Cada motivo diz o que faltou e, quando o outro documento
+  // traz o dado, o que foi lido nele.
+  const missing: string[] = [];
   for (const [field, label] of [
     ["name", "Nome"],
     ["cpf", "CPF"],
   ] as const) {
     const voucher = identity.voucher[field]?.trim();
     const contract = identity.contract[field]?.trim();
-    if (!voucher)
-      reasons.push(`${label} do cliente ausente ou ilegível no voucher.${contract ? ` No contrato consta: ${quote(contract)}.` : ""}`);
-    if (!contract)
-      reasons.push(`${label} do cliente ausente ou ilegível no contrato.${voucher ? ` No voucher consta: ${quote(voucher)}.` : ""}`);
+    if (!voucher && !contract) missing.push(`${label} do cliente não encontrado no voucher nem no contrato.`);
+    else if (!voucher) missing.push(`${label} do cliente ausente ou ilegível no voucher. No contrato consta: ${quote(contract!)}.`);
+    else if (!contract) missing.push(`${label} do cliente ausente ou ilegível no contrato. No voucher consta: ${quote(voucher)}.`);
   }
-  return reasons;
+  if (!missing.length) return [];
+  // O que está divergente entre os documentos também é motivo: mostra o valor lido em cada um, para ver a causa real da recusa.
+  const divergent: string[] = [];
+  const reservationVoucher = reservation?.voucher?.trim();
+  const reservationContract = reservation?.contract?.trim();
+  if (reservationVoucher && reservationContract)
+    divergent.push(
+      `Código da reserva diverge entre voucher e contrato. No voucher consta ${quote(reservationVoucher)} e no contrato ${quote(reservationContract)}.`,
+    );
+  const nameVoucher = identity.voucher.name?.trim();
+  const nameContract = identity.contract.name?.trim();
+  if (nameVoucher && nameContract)
+    divergent.push(
+      `Nome do cliente diverge entre voucher e contrato. No voucher consta ${quote(nameVoucher)} e no contrato ${quote(nameContract)}.`,
+    );
+  const cpfVoucher = identity.voucher.cpf?.trim();
+  const cpfContract = identity.contract.cpf?.trim();
+  if (cpfVoucher && cpfContract)
+    divergent.push(
+      `CPF do cliente diverge entre voucher e contrato. No voucher consta ${quote(cpfVoucher)} e no contrato ${quote(cpfContract)}.`,
+    );
+  return [NO_IDENTITY_MATCH_REASON, ...divergent, ...missing];
 }
 
 /** APROVACAO_AUTOMATICA=false desliga a aprovação sem administrador na hora, sem novo deploy; ausente ou outro valor mantém ligada. */
