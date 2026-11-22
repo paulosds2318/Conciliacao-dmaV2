@@ -294,7 +294,7 @@ export function RequestDetail() {
   async function decide(decision: "APPROVE" | "REJECT") {
     const message =
       decision === "APPROVE"
-        ? "A ação será executada agora no Coral."
+        ? "A ação será executada agora no Coral. Se der certo, você volta para a tela de aprovações; se der erro, continua nesta tela para ver o motivo."
         : "A solicitação volta para o atendente corrigir, com a justificativa informada.";
     if (
       !(await confirmAction({
@@ -316,6 +316,11 @@ export function RequestDetail() {
       });
       const data = (await response.json()) as { error?: string; status?: string };
       if (!data.status) throw new Error(data.error || "Não foi possível registrar a decisão.");
+      // Aprovada e concluída no Coral: volta para a fila de aprovações. Com erro, fica aqui para mostrar o motivo.
+      if (decision === "APPROVE" && data.status === "COMPLETED") {
+        router.push("/analise");
+        return;
+      }
       setItem(await load());
       router.refresh();
       if (data.status === "REJECTED") setSuccess("Solicitação recusada e devolvida ao atendente para correção.");
