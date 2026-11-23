@@ -10,7 +10,12 @@ export type ConfirmationOptions = {
 };
 
 /** Confirmação que exige um motivo, registrado no histórico de auditoria. */
-export type ReasonOptions = ConfirmationOptions & { reasonLabel: string; reasonPlaceholder?: string };
+export type ReasonOptions = ConfirmationOptions & {
+  reasonLabel: string;
+  reasonPlaceholder?: string;
+  /** Mínimo de caracteres que o servidor exige no motivo; só é dito no texto do diálogo (o botão não muda). */
+  minLength?: number;
+};
 
 type ConfirmationRequest =
   | { kind: "confirm"; options: ConfirmationOptions; resolve: (confirmed: boolean) => void }
@@ -48,6 +53,7 @@ export function ConfirmationProvider({ children }: { children: ReactNode }) {
   }
 
   const needsReason = pending?.kind === "reason";
+  const minLength = pending?.kind === "reason" ? (pending.options.minLength ?? 1) : 1;
   return (
     <ConfirmationContext.Provider value={{ confirm, askReason }}>
       {children}
@@ -68,7 +74,11 @@ export function ConfirmationProvider({ children }: { children: ReactNode }) {
                   autoFocus
                   placeholder={pending.options.reasonPlaceholder}
                 />
-                <small>Obrigatório, até 2.000 caracteres. Fica registrado no histórico.</small>
+                <small>
+                  {minLength > 1
+                    ? `Obrigatório: no mínimo ${minLength} caracteres, até 2.000. Fica registrado no histórico.`
+                    : "Obrigatório, até 2.000 caracteres. Fica registrado no histórico."}
+                </small>
               </label>
             )}
             <div className="form-actions deletion-dialog-actions">

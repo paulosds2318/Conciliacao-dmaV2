@@ -7,6 +7,7 @@ import { RequestManagement } from "@/components/request-management";
 import { FileAttachmentField } from "@/components/file-attachment-field";
 import { checkAttachment } from "@/lib/check-attachment";
 import { saveQueueFlash } from "@/lib/services/queue-flash";
+import { FORCE_JUSTIFICATION_MIN_LENGTH } from "@/lib/justification";
 import {
   APPROVE_DIALOG_TEXT,
   approvalFlashMessage,
@@ -347,6 +348,7 @@ export function RequestDetail() {
       description: forceApproveDialogText(reasons),
       reasonLabel: "Justificativa da aprovação forçada",
       reasonPlaceholder: "Ex.: conferido com o cliente; os dados do voucher estão corretos.",
+      minLength: FORCE_JUSTIFICATION_MIN_LENGTH,
       confirmLabel: "Aprovar mesmo assim",
       danger: true,
     });
