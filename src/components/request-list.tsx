@@ -8,6 +8,7 @@ import { personName } from "@/lib/person-name";
 import { REQUEST_STATUS_LABELS } from "@/lib/services/request-status";
 import { MAX_BATCH_SIZE, batchConfirmation, hasDivergence } from "@/lib/services/batch-approval";
 import { newBatchState, saveBatchState } from "@/lib/services/batch-session";
+import { takeQueueFlash } from "@/lib/services/queue-flash";
 
 type RequestRow = {
   id: string;
@@ -64,9 +65,17 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
   const confirm = useConfirmation();
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Aviso deixado pela tela de detalhe ao aprovar uma solicitação e voltar para a fila.
+  useEffect(() => {
+    if (!adminQueue) return;
+    void Promise.resolve().then(() => {
+      const flash = takeQueueFlash();
+      if (flash) setActionMessage(flash);
+    });
+  }, [adminQueue]);
   useEffect(() => {
     if (!actionMessage) return;
-    const timeout = window.setTimeout(() => setActionMessage(""), 4000);
+    const timeout = window.setTimeout(() => setActionMessage(""), 7000);
     return () => window.clearTimeout(timeout);
   }, [actionMessage]);
 
