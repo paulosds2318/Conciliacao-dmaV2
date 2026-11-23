@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAllowed } from "@/lib/server/auth";
 import { apiError } from "@/lib/server/http";
-import { extractDmaCurrentStatus, lookupContract } from "@/lib/server/coral";
+import { extractAwardable, extractDmaCurrentStatus, lookupContract } from "@/lib/server/coral";
 import { checkContractAccess } from "@/lib/server/store-access";
 export async function GET(request: NextRequest) {
   const user = await isAllowed(["attendant", "admin"]);
@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
         displayName: contract.displayName,
         currentDmaStatus: dma.status,
         statusSourceField: dma.sourceField,
+        awardable: extractAwardable(contract.raw),
       },
     });
   } catch (error) {

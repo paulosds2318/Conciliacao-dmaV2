@@ -36,3 +36,19 @@ O backend envia voucher e contrato como arquivos PDF à rota `/api/v1/chat/compl
 ## Armazenamento
 
 PDFs são validados por extensão, MIME, tamanho (`MAX_PDF_SIZE_MB`) e assinatura `%PDF-`; armazenados em `DOCUMENT_STORAGE_PATH`, fora de `public`, e disponibilizados por rota autenticada com checagem de proprietário/perfil. Para produção, configure volume persistente, backup e retenção compatível com a política interna.
+
+## Situação de DMA e premiável na consulta do contrato
+
+A consulta do contrato no Coral (`GET /api/rentagreement/{CONTRATO}`) traz, na raiz de `data`, os campos que o app lê na tela de consulta de DMA:
+
+| Campo do Coral | Significado | O app mostra |
+|---|---|---|
+| `regardDma` verdadeiro | "Considerar DMA" marcado na edição do contrato. Força o contrato a contar no DMA e vence as outras regras, inclusive `dma = true`. Só essa tela o marca; a ação `REGARD` do endpoint **não** o define. | Considerar DMA |
+| `dma` verdadeiro (com `regardDma` falso) | Contrato desconsiderado. A ação `DISREGARD` grava `dma = true` e zera `regardDma`. | Desconsiderar DMA |
+| `dma` e `regardDma` falsos | Sem ação de DMA (padrão). É o estado em que um contrato fica depois de um `REGARD` feito pelo app, porque `REGARD` só grava `dma = false`. | Sem ação de DMA (padrão) |
+
+Consequência para a operação: **"Considerar DMA" pelo app desfaz a desconsideração, mas não marca o "Considerar DMA" da edição do contrato**. Depois de um `DISREGARD`, o `REGARD` não devolve o `regardDma` que existia antes.
+
+**Premiável:** vem do `awardable` do acordo comercial do contrato, em `cdpData.awardable` (`"yes"` ou `"no"`). O `awardable` da raiz da resposta e o de `optionals` não valem para isso.
+
+Conferido na homologação (REC000605-26 e REC001097-26, ambos com acordo `2DIRIGEM`): padrão e desconsiderado, os dois premiáveis, batendo com a tela do Coral. O caso `regardDma = true` segue a regra informada pela equipe do Coral e ainda não foi visto num contrato real; para vê-lo na homologação, marque "Considerar DMA" na edição de um contrato (exige a permissão `EDIT_*_REGARD_DMA`).

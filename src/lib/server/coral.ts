@@ -214,7 +214,48 @@ export async function applyDmaEligibility(rentAgreementId: string, action: DmaAc
   }
 }
 
-export type DmaCurrentStatus = "CONSIDERAR" | "DESCONSIDERAR" | "UNKNOWN";
+/**
+ * Contrato premiável, pelo `awardable` do acordo comercial do contrato (`cdpData`, "yes" ou "no"); null quando não vem.
+ * Conferido na tela do Coral nos dois contratos da homologação: ambos "Premiável: Sim", com `cdpData.awardable = "yes"`.
+ * Não usar o `awardable` da raiz da resposta: ele varia por contrato e deu "no" no REC001097-26, que a tela do Coral mostra
+ * como premiável (parece ser o efeito de o contrato estar desconsiderado no DMA, mas isso é hipótese). O `awardable` de
+ * `optionals` é do opcional.
+ */
+export function extractAwardable(payload: unknown): boolean | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const cdp = (payload as Record<string, unknown>).cdpData;
+  if (!cdp || typeof cdp !== "object" || Array.isArray(cdp)) return null;
+  const value = (cdp as Record<string, unknown>).awardable;
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (["yes", "sim", "true", "1"].includes(normalized)) return true;
+  if (["no", "nao", "não", "false", "0"].includes(normalized)) return false;
+  return null;
+}
+
+/** NEUTRO: o contrato não foi considerado nem desconsiderado (situação padrão, sem ação de DMA). */
+export type DmaCurrentStatus = "CONSIDERAR" | "DESCONSIDERAR" | "NEUTRO" | "UNKNOWN";
+
+/**
+ * Situação de DMA pelos campos reais do Coral, na raiz do contrato. Regras informadas pela equipe do Coral:
+ * - `regardDma` (regard_dma) verdadeiro é o "Considerar DMA" marcado na edição do contrato: força o contrato a contar no DMA e
+ *   vence as outras regras, inclusive `dma = true`. Só é marcado por essa tela; a ação REGARD do endpoint não o define.
+ * - `dma` verdadeiro: contrato desconsiderado (a ação DISREGARD grava dma = true e zera regardDma; a ação REGARD grava dma = false).
+ * - Os dois falsos: sem ação de DMA (padrão). É o estado em que um contrato fica depois de um REGARD feito por este app.
+ * Conferido na homologação em dois contratos: desconsiderado (dma=true, regardDma=false) e padrão (dma=false, regardDma=false).
+ * O caso regardDma=true segue a regra do Coral, mas ainda não foi visto num contrato real.
+ */
+function coralDmaFlags(payload: unknown): { status: DmaCurrentStatus; sourceField: string } | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const row = payload as Record<string, unknown>;
+  const dma = typeof row.dma === "boolean" ? row.dma : null;
+  const regard = typeof row.regardDma === "boolean" ? row.regardDma : null;
+  if (regard === true) return { status: "CONSIDERAR", sourceField: "regardDma" };
+  if (dma === true) return { status: "DESCONSIDERAR", sourceField: "dma" };
+  if (dma === false && regard === false) return { status: "NEUTRO", sourceField: "dma/regardDma" };
+  return null;
+}
 export function extractDmaCurrentStatus(payload: unknown): { status: DmaCurrentStatus; sourceField: string | null } {
   let considerarFlag: boolean | null = null;
   let desconsiderarFlag: boolean | null = null;
@@ -285,5 +326,5 @@ export function extractDmaCurrentStatus(payload: unknown): { status: DmaCurrentS
   if (explicit) return explicit;
   if (considerarFlag === true && desconsiderarFlag !== true) return { status: "CONSIDERAR", sourceField: flagSource };
   if (desconsiderarFlag === true && considerarFlag !== true) return { status: "DESCONSIDERAR", sourceField: flagSource };
-  return { status: "UNKNOWN", sourceField: null };
+  return coralDmaFlags(payload) ?? { status: "UNKNOWN", sourceField: null };
 }

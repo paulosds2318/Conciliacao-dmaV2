@@ -3,11 +3,21 @@ import { useState } from "react";
 import { FileAttachmentField } from "@/components/file-attachment-field";
 
 type SheetPreview = { name: string; headers: string[]; rows: { rowNumber: number; values: string[] }[]; rowCount: number };
-type Status = "CONSIDERAR" | "DESCONSIDERAR" | "UNKNOWN" | "ERROR" | "NOT_CHECKED";
-type Result = { rowNumber: number; contractNumber: string; status: Status; sourceField?: string | null; message?: string };
+type Status = "CONSIDERAR" | "DESCONSIDERAR" | "NEUTRO" | "UNKNOWN" | "ERROR" | "NOT_CHECKED";
+type Result = {
+  rowNumber: number;
+  contractNumber: string;
+  status: Status;
+  sourceField?: string | null;
+  /** Contrato premiável no Coral: true, false ou null quando o Coral não informa. */
+  awardable?: boolean | null;
+  message?: string;
+};
+const awardableLabel = (value: boolean | null | undefined) => (value === true ? "Sim" : value === false ? "Não" : "—");
 const statusLabels: Record<Status, string> = {
   CONSIDERAR: "Considerar DMA",
   DESCONSIDERAR: "Desconsiderar DMA",
+  NEUTRO: "Sem ação de DMA (padrão)",
   UNKNOWN: "Situação não identificada",
   ERROR: "Falha na consulta",
   NOT_CHECKED: "Não consultado",
@@ -55,11 +65,16 @@ export function ContractStatusChecker() {
   async function queryOne(contractNumber: string): Promise<Omit<Result, "rowNumber">> {
     const response = await fetch(`/api/contracts/status?number=${encodeURIComponent(contractNumber)}`);
     const data = (await response.json()) as {
-      contract?: { number: string; currentDmaStatus: Status; statusSourceField: string | null };
+      contract?: { number: string; currentDmaStatus: Status; statusSourceField: string | null; awardable?: boolean | null };
       error?: string;
     };
     if (!response.ok || !data.contract) throw new Error(data.error || `Falha HTTP ${response.status}.`);
-    return { contractNumber: data.contract.number, status: data.contract.currentDmaStatus, sourceField: data.contract.statusSourceField };
+    return {
+      contractNumber: data.contract.number,
+      status: data.contract.currentDmaStatus,
+      sourceField: data.contract.statusSourceField,
+      awardable: data.contract.awardable ?? null,
+    };
   }
   async function querySingle(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -138,11 +153,12 @@ export function ContractStatusChecker() {
   }
   function downloadCsv() {
     const rows = [
-      ["Linha", "Contrato", "Situação DMA", "Campo de origem", "Detalhe"],
+      ["Linha", "Contrato", "Situação DMA", "Premiável", "Campo de origem", "Detalhe"],
       ...results.map((row) => [
         String(row.rowNumber),
         row.contractNumber,
         statusLabels[row.status],
+        awardableLabel(row.awardable),
         row.sourceField || "",
         row.message || "",
       ]),
@@ -263,6 +279,7 @@ export function ContractStatusChecker() {
                   <th>Linha</th>
                   <th>Contrato</th>
                   <th>Situação atual</th>
+                  <th>Premiável</th>
                   <th>Campo retornado</th>
                   <th>Detalhe</th>
                 </tr>
@@ -273,6 +290,7 @@ export function ContractStatusChecker() {
                     <td>{row.rowNumber}</td>
                     <td className="strong">{row.contractNumber}</td>
                     <td>{statusLabels[row.status]}</td>
+                    <td>{awardableLabel(row.awardable)}</td>
                     <td>{row.sourceField || "—"}</td>
                     <td>{row.message || "—"}</td>
                   </tr>
