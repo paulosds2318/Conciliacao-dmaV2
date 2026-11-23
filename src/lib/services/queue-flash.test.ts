@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { QUEUE_FLASH_KEY, approvalFlashMessage, saveQueueFlash, takeQueueFlash } from "./queue-flash.ts";
+import { QUEUE_FLASH_KEY, saveQueueFlash, takeQueueFlash } from "./queue-flash.ts";
 
 const memory = () => {
   const data = new Map<string, string>();
@@ -13,10 +13,6 @@ const memory = () => {
 };
 
 describe("aviso da fila de aprovações", () => {
-  it("diz qual contrato foi aprovado e se foi aprovação forçada", () => {
-    assert.equal(approvalFlashMessage("CNF011109-26", false), "Solicitação CNF011109-26 aprovada e concluída no Coral.");
-    assert.equal(approvalFlashMessage("CNF011109-26", true), "Solicitação CNF011109-26 aprovada à força e concluída no Coral.");
-  });
   it("aparece uma única vez", () => {
     const storage = memory();
     saveQueueFlash("aviso", storage);

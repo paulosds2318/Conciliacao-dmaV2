@@ -6,7 +6,14 @@ import { useSession } from "@/lib/auth-client";
 import { RequestManagement } from "@/components/request-management";
 import { FileAttachmentField } from "@/components/file-attachment-field";
 import { checkAttachment } from "@/lib/check-attachment";
-import { approvalFlashMessage, saveQueueFlash } from "@/lib/services/queue-flash";
+import { saveQueueFlash } from "@/lib/services/queue-flash";
+import {
+  APPROVE_DIALOG_TEXT,
+  approvalFlashMessage,
+  coralRefusedMessage,
+  coralUncertainMessage,
+  forceApproveDialogText,
+} from "@/lib/services/approval-messages";
 import { useConfirmation, useReasonPrompt } from "@/components/confirmation-provider";
 import { personName } from "@/lib/person-name";
 import { DOCUMENT_ACCEPT } from "@/lib/document-types";
@@ -294,9 +301,7 @@ export function RequestDetail() {
   }
   async function decide(decision: "APPROVE" | "REJECT") {
     const message =
-      decision === "APPROVE"
-        ? "A ação será executada agora no Coral. Se der certo, você volta para a tela de aprovações; se der erro, continua nesta tela para ver o motivo."
-        : "A solicitação volta para o atendente corrigir, com a justificativa informada.";
+      decision === "APPROVE" ? APPROVE_DIALOG_TEXT : "A solicitação volta para o atendente corrigir, com a justificativa informada.";
     if (
       !(await confirmAction({
         title: decision === "APPROVE" ? "Aprovar solicitação?" : "Recusar solicitação?",
@@ -319,19 +324,15 @@ export function RequestDetail() {
       if (!data.status) throw new Error(data.error || "Não foi possível registrar a decisão.");
       // Aprovada e concluída no Coral: volta para a fila de aprovações. Com erro, fica aqui para mostrar o motivo.
       if (decision === "APPROVE" && data.status === "COMPLETED") {
-        saveQueueFlash(approvalFlashMessage(item?.contractName ?? "", false));
+        saveQueueFlash(approvalFlashMessage(item?.contractName ?? "", item?.actionType ?? "", false));
         router.push("/analise");
         return;
       }
       setItem(await load());
       router.refresh();
       if (data.status === "REJECTED") setSuccess("Solicitação recusada e devolvida ao atendente para correção.");
-      else if (data.status === "COMPLETED") setSuccess("Solicitação aprovada e ação concluída no Coral.");
-      else if (data.status === "EXECUTION_UNCERTAIN")
-        setError(
-          `Solicitação aprovada, mas o Coral não confirmou o resultado. Não reenvie sem verificar no Coral. ${data.error || ""}`.trim(),
-        );
-      else setError(`Solicitação aprovada, mas o Coral recusou a ação. ${data.error || ""}`.trim());
+      else if (data.status === "EXECUTION_UNCERTAIN") setError(coralUncertainMessage(false, data.error));
+      else setError(coralRefusedMessage(false, data.error));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível registrar a decisão.");
     } finally {
@@ -343,7 +344,7 @@ export function RequestDetail() {
     const reasons = rejectionReasons({ version: item.version, auditEvents: item.auditEvents, decisions: item.decisions });
     const justification = await askReason({
       title: "Forçar a aprovação desta solicitação?",
-      description: `${reasons.length ? `Motivo da recusa: ${reasons.slice(0, 3).join(" ")} ` : ""}Ao aprovar, a ação será executada agora no Coral, mesmo com a recusa. Se der certo, você volta para a tela de aprovações; se der erro, continua nesta tela para ver o motivo.`,
+      description: forceApproveDialogText(reasons),
       reasonLabel: "Justificativa da aprovação forçada",
       reasonPlaceholder: "Ex.: conferido com o cliente; os dados do voucher estão corretos.",
       confirmLabel: "Aprovar mesmo assim",
@@ -363,18 +364,14 @@ export function RequestDetail() {
       if (!data.status) throw new Error(data.error || "Não foi possível forçar a aprovação.");
       // Concluída no Coral: volta para a fila de aprovações. Com erro, fica aqui para mostrar o motivo.
       if (data.status === "COMPLETED") {
-        saveQueueFlash(approvalFlashMessage(item.contractName, true));
+        saveQueueFlash(approvalFlashMessage(item.contractName, item.actionType, true));
         router.push("/analise");
         return;
       }
       setItem(await load());
       router.refresh();
-      if (data.status === "COMPLETED") setSuccess("Aprovação forçada registrada e ação concluída no Coral.");
-      else if (data.status === "EXECUTION_UNCERTAIN")
-        setError(
-          `Aprovação forçada registrada, mas o Coral não confirmou o resultado. Não reenvie sem verificar no Coral. ${data.error || ""}`.trim(),
-        );
-      else setError(`Aprovação forçada registrada, mas o Coral recusou a ação. ${data.error || ""}`.trim());
+      if (data.status === "EXECUTION_UNCERTAIN") setError(coralUncertainMessage(true, data.error));
+      else setError(coralRefusedMessage(true, data.error));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível forçar a aprovação.");
     } finally {

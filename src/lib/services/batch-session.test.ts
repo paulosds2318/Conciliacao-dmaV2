@@ -32,7 +32,7 @@ describe("estado do lote entre a fila e a página", () => {
         r1: { state: "approved" as const },
         r2: { state: "running" as const },
         r3: { state: "waiting" as const },
-        r4: { state: "failed" as const, message: "x", uncertain: false },
+        r4: { state: "failed" as const, message: "x", uncertain: false, coral: false },
       },
     };
     const result = interruptedBatch(state, 99);
@@ -40,7 +40,7 @@ describe("estado do lote entre a fila e a página", () => {
     assert.equal(result.finishedAt, 99);
     assert.equal(result.stoppedBy, "reload");
     assert.deepEqual(result.steps.r1, { state: "approved" });
-    assert.deepEqual(result.steps.r2, { state: "failed", message: RELOAD_INTERRUPTED_MESSAGE, uncertain: true });
+    assert.deepEqual(result.steps.r2, { state: "failed", message: RELOAD_INTERRUPTED_MESSAGE, uncertain: true, coral: true });
     assert.deepEqual(result.steps.r3, { state: "skipped" });
     assert.equal(result.steps.r4.state, "failed");
   });
@@ -70,8 +70,8 @@ describe("linhas e título do lote", () => {
       ...newBatchState(items),
       steps: {
         r1: { state: "approved" as const },
-        r2: { state: "failed" as const, message: "O Coral recusou.", uncertain: false },
-        r3: { state: "failed" as const, message: "Sem resposta.", uncertain: true },
+        r2: { state: "failed" as const, message: "O Coral recusou.", uncertain: false, coral: true },
+        r3: { state: "failed" as const, message: "Sem resposta.", uncertain: true, coral: true },
         r4: { state: "skipped" as const },
       },
     };
@@ -85,8 +85,16 @@ describe("linhas e título do lote", () => {
         ["Não processada", ""],
       ],
     );
-    assert.match(rows[2].detail, /Não reenvie: confira o contrato no Coral\./);
-    assert.equal(rows[1].detail, "O Coral recusou.");
+    assert.match(rows[2].detail, /^Sem resposta\. Não aprove de novo: confira o contrato no Coral/);
+    assert.match(rows[1].detail, /^O Coral recusou\. Não há nova tentativa por esta solicitação/);
+    assert.match(rows[1].detail, /Ação manual por planilha/);
+  });
+  it("falha que não veio do Coral mostra só o motivo, sem orientação do Coral", () => {
+    const state = {
+      ...newBatchState(items),
+      steps: { r1: { state: "failed" as const, message: "A solicitação não está aguardando análise.", uncertain: false, coral: false } },
+    };
+    assert.equal(batchRows(state)[0].detail, "A solicitação não está aguardando análise.");
   });
   it("o título depende de o lote ter terminado e de ter ocorrências", () => {
     const state = newBatchState(items);

@@ -175,7 +175,7 @@ describe("acompanhamento do lote", () => {
   it("conta e mede o tempo do lote", () => {
     const counts = batchCounts([
       { state: "approved" },
-      { state: "failed", message: "x", uncertain: false },
+      { state: "failed", message: "x", uncertain: false, coral: false },
       { state: "running" },
       { state: "waiting" },
       { state: "skipped" },

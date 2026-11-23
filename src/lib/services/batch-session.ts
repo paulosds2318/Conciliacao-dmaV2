@@ -1,4 +1,5 @@
 import type { BatchItem, BatchStep } from "@/lib/services/batch-approval";
+import { CORAL_REFUSED_NEXT_STEP, CORAL_UNCERTAIN_NEXT_STEP } from "@/lib/services/approval-messages";
 
 /**
  * Estado da aprovação em lote entre a fila e a página do lote (/analise/lote). A fila grava o lote escolhido e abre a página, que
@@ -39,7 +40,7 @@ export function interruptedBatch(state: BatchRunState, finishedAt: number): Batc
   const steps = { ...state.steps };
   for (const item of state.items) {
     const step = steps[item.id];
-    if (step?.state === "running") steps[item.id] = { state: "failed", message: RELOAD_INTERRUPTED_MESSAGE, uncertain: true };
+    if (step?.state === "running") steps[item.id] = { state: "failed", message: RELOAD_INTERRUPTED_MESSAGE, uncertain: true, coral: true };
     else if (!step || step.state === "waiting") steps[item.id] = { state: "skipped" };
   }
   return { ...state, steps, phase: "done", finishedAt, stoppedBy: state.stoppedBy ?? "reload" };
@@ -98,7 +99,7 @@ export function batchRows(state: BatchRunState): BatchRow[] {
           ...base,
           status: step.uncertain ? "Resultado não confirmado" : "Falhou",
           tone: step.uncertain ? "warn" : "bad",
-          detail: `${step.message}${step.uncertain ? " Não reenvie: confira o contrato no Coral." : ""}`,
+          detail: `${step.message} ${step.uncertain ? CORAL_UNCERTAIN_NEXT_STEP : step.coral ? CORAL_REFUSED_NEXT_STEP : ""}`.trim(),
         };
       case "running":
         return { ...base, status: "Aprovando no Coral…", tone: "", detail: "Em andamento." };

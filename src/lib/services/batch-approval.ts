@@ -16,7 +16,7 @@ export type BatchStep =
   | { state: "waiting" }
   | { state: "running" }
   | { state: "approved" }
-  | { state: "failed"; message: string; uncertain: boolean }
+  | { state: "failed"; message: string; uncertain: boolean; coral: boolean }
   | { state: "skipped" };
 export type BatchFailure = BatchItem & { message: string; uncertain: boolean };
 export type BatchOutcome = {
@@ -75,7 +75,7 @@ export async function runBatchApproval(
       continue;
     }
     outcome.failed.push({ ...item, message: result.message, uncertain: result.uncertain });
-    hooks.onItem?.(item, { state: "failed", message: result.message, uncertain: result.uncertain });
+    hooks.onItem?.(item, { state: "failed", message: result.message, uncertain: result.uncertain, coral: result.coral });
     consecutiveCoralFailures = result.coral ? consecutiveCoralFailures + 1 : 0;
     if (consecutiveCoralFailures >= MAX_CONSECUTIVE_CORAL_FAILURES) outcome.stoppedBy = "coral";
   }

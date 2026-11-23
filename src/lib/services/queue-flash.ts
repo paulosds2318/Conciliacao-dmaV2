@@ -11,10 +11,6 @@ function safeStorage(): FlashStorage | undefined {
   }
 }
 
-export function approvalFlashMessage(contractName: string, forced: boolean) {
-  return `Solicitação ${contractName} ${forced ? "aprovada à força" : "aprovada"} e concluída no Coral.`;
-}
-
 export function saveQueueFlash(message: string, storage: FlashStorage | undefined = safeStorage()) {
   try {
     storage?.setItem(QUEUE_FLASH_KEY, message);
