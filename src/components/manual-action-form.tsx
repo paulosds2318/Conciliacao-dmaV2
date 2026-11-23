@@ -228,7 +228,7 @@ export function ManualActionForm() {
                   <p className="subcell">
                     Prévia das primeiras {selectedSheet.rows.length} linhas. Repetidos e células vazias serão ignorados.
                   </p>
-                  <div className="table-wrap">
+                  <div className="table-wrap" tabIndex={0}>
                     <table>
                       <thead>
                         <tr>

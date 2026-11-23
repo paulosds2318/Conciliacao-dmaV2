@@ -3,6 +3,9 @@
 :root {
   /* Cores Institucionais da Foco (Manual de Identidade Visual) */
   --foco-red: #f20000;
+  /* Vermelho para texto em fundo claro e para botões com texto branco: a marca (#f20000) fica abaixo de 4,5:1 de contraste. */
+  --foco-red-text: #d00000;
+  --foco-red-button: #d90000;
   --foco-red-hover: #d90000;
   --foco-red-dark: #c20000;
   --foco-red-subtle: #fff5f5;
@@ -24,7 +27,7 @@
   --ink: #1c2024;
   --ink-secondary: #3b424a;
   --muted: #5f6b76;
-  --muted-light: #8b98a5;
+  --muted-light: #667380;
   --line: #e5e9ec;
   --line-subtle: #eef2f4;
   --bg: #f7f9fa;
@@ -120,7 +123,7 @@ body {
   background: var(--foco-red-subtle);
   border: 1px solid var(--foco-red-light);
   border-radius: var(--radius-full);
-  color: var(--foco-red);
+  color: var(--foco-red-text);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -153,12 +156,12 @@ body {
 }
 
 .nav-link:hover {
-  color: var(--foco-red);
+  color: var(--foco-red-text);
   background: var(--foco-red-subtle);
 }
 
 .nav-link.active {
-  color: var(--foco-red);
+  color: var(--foco-red-text);
   background: var(--foco-red-subtle);
   font-weight: 700;
 }
@@ -217,7 +220,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--foco-red);
+  color: var(--foco-red-text);
   font-weight: 800;
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -281,20 +284,20 @@ h2 {
 }
 
 .primary {
-  background: var(--foco-red);
+  background: var(--foco-red-button);
   /* Branco fixo: no tema escuro --white vira a cor dos cartões e o texto sumia no vermelho. */
   color: #ffffff;
   box-shadow: 0 1px 2px rgba(242, 0, 0, 0.12);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--foco-red-hover);
+  background: var(--foco-red-dark);
   box-shadow: 0 4px 10px rgba(242, 0, 0, 0.24);
   transform: translateY(-1px);
 }
 
 .primary:active:not(:disabled) {
-  background: var(--foco-red-dark);
+  background: #a30000;
   transform: translateY(0);
 }
 
@@ -526,7 +529,7 @@ h2 {
 }
 
 .selection-summary strong {
-  color: var(--foco-red);
+  color: var(--foco-red-text);
 }
 
 /* ==========================================================================
@@ -840,7 +843,7 @@ td input[type="checkbox"] {
 
 .quick-link strong::after {
   content: "→";
-  color: var(--foco-red);
+  color: var(--foco-red-text);
   font-size: 16px;
   transition: transform 0.15s ease;
 }
@@ -884,7 +887,7 @@ td input[type="checkbox"] {
 }
 
 .backline a {
-  color: var(--foco-red);
+  color: var(--foco-red-text);
   text-decoration: none;
 }
 
@@ -893,7 +896,7 @@ td input[type="checkbox"] {
 }
 
 a {
-  color: var(--foco-red);
+  color: var(--foco-red-text);
   font-weight: 600;
   text-decoration: none;
   transition: color 0.15s ease;
@@ -978,6 +981,8 @@ a:hover {
 
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --foco-red-text: var(--foco-red);
+  --foco-red-button: var(--foco-red);
   --ink: #f3f4f6;
   --ink-secondary: #d1d5db;
   --muted: #a8b0ba;
@@ -1391,12 +1396,14 @@ a:hover {
 .nav-user-role.admin {
   border-color: var(--foco-red-light);
   background: var(--foco-red-subtle);
-  color: var(--foco-red);
+  color: var(--foco-red-text);
 }
 
 .nav-signout {
   padding: 6px 10px;
   font-size: 11px;
+  /* Área de toque de pelo menos 32 px de altura. */
+  min-height: 32px;
 }
 
 /* Mantém a marca, as abas e a conta em áreas próprias, sem sobreposição. */
@@ -1705,7 +1712,7 @@ a:hover {
   white-space: nowrap;
 }
 .dashboard-table td:last-child a {
-  color: var(--foco-red);
+  color: var(--foco-red-text);
   font-weight: 700;
   text-decoration: none;
 }
@@ -1720,7 +1727,7 @@ a:hover {
   background: var(--line-subtle);
   border: 1px solid var(--line);
   border-radius: var(--radius-full);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -1759,7 +1766,7 @@ a:hover {
   font-size: 14px;
 }
 .dashboard-shortcut strong span {
-  color: var(--foco-red);
+  color: var(--foco-red-text);
   font-size: 18px;
 }
 .dashboard-shortcut small {
@@ -2293,7 +2300,7 @@ div.dashboard-metric:hover {
   width: 40px;
 }
 .batch-warning {
-  color: var(--foco-amber);
+  color: #92400e;
   font-weight: 600;
   white-space: normal;
 }
@@ -2330,7 +2337,7 @@ div.dashboard-metric:hover {
   color: #b91c1c;
 }
 .batch-status.warn {
-  color: var(--foco-amber);
+  color: #92400e;
 }
 :root[data-theme="dark"] .batch-status.ok {
   color: #4ade80;
@@ -2344,4 +2351,40 @@ div.dashboard-metric:hover {
 .batch-detail-cell {
   white-space: normal;
   min-width: 240px;
+}
+
+/* Texto só para leitores de tela. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Celular: caixas de seleção da fila com área de toque maior. */
+@media (max-width: 760px) {
+  td.batch-check input,
+  th.batch-check input {
+    width: 24px;
+    height: 24px;
+  }
+  .batch-check {
+    width: 48px;
+  }
+}
+
+/* Texto <small> sem classe própria: o padrão do navegador fica em 10,8 px; o mínimo do projeto é 11 px. */
+small {
+  font-size: 11px;
+}
+
+/* Tabelas com rolagem recebem foco pelo teclado: o contorno mostra onde está. */
+.table-wrap:focus-visible {
+  outline: 2px solid var(--foco-red-text);
+  outline-offset: 2px;
 }

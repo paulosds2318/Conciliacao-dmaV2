@@ -1,0 +1,5 @@
+# Complemento do docker-compose.yml para os testes de tela: liga o modo de teste, que SIMULA o Coral (nada é alterado de verdade).
+services:
+  app:
+    environment:
+      MODO_TESTE_API: "true"

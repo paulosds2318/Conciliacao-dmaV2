@@ -1,3 +1,4 @@
+import { logAlert } from "@/lib/server/alert-log";
 import { db } from "@/lib/db";
 import { applyDmaEligibility } from "@/lib/server/coral";
 
@@ -105,6 +106,7 @@ export async function executeApprovedRequest(item: ApprovedRequest, approval: Ap
         },
       }),
     ]);
+    logAlert(uncertain ? "EXECUCAO_INCERTA" : "EXECUCAO_FALHOU", item.id);
     return {
       status: uncertain ? "EXECUTION_UNCERTAIN" : "EXECUTION_FAILED",
       error: error instanceof Error ? error.message : "Falha na execução.",

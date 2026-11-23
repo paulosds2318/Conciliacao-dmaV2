@@ -10,9 +10,9 @@ export default async function ManualActionsPage() {
   return (
     <>
       <ManualActionForm />
-      <main className="shell batch-history">
+      <section className="shell batch-history" aria-label="Histórico de ações por planilha">
         <BatchList />
-      </main>
+      </section>
     </>
   );
 }

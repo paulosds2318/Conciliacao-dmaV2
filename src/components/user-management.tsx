@@ -253,7 +253,7 @@ export function UserManagement() {
         {loading ? (
           <div className="empty">Carregando usuários…</div>
         ) : (
-          <div className="table-wrap">
+          <div className="table-wrap" tabIndex={0}>
             <table>
               <thead>
                 <tr>
@@ -263,7 +263,9 @@ export function UserManagement() {
                   <th>Lojas</th>
                   <th>Acesso</th>
                   <th>Alterar perfil</th>
-                  <th></th>
+                  <th>
+                    <span className="sr-only">Ações</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>

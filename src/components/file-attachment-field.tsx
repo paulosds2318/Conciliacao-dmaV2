@@ -31,6 +31,7 @@ export function FileAttachmentField({
   const inputRef = useRef<HTMLInputElement>(null);
   const [problem, setProblem] = useState("");
   const [checking, setChecking] = useState(false);
+  const latestCheck = useRef(0);
 
   async function choose(chosen: File | null) {
     setProblem("");
@@ -38,15 +39,18 @@ export function FileAttachmentField({
       onFileChange(chosen);
       return;
     }
+    // O campo continua habilitado durante a conferência para o arquivo escolhido seguir no envio; se a pessoa escolher outro
+    // arquivo antes da resposta, só vale a resposta da conferência mais recente.
+    const check = ++latestCheck.current;
     setChecking(true);
     let message: string | null = null;
     try {
       message = await validate(chosen);
     } catch {
       // Sem conseguir conferir agora, o arquivo segue e a conferência do envio decide.
-    } finally {
-      setChecking(false);
     }
+    if (check !== latestCheck.current) return;
+    setChecking(false);
     if (message) {
       // O arquivo recusado não fica anexado.
       if (inputRef.current) inputRef.current.value = "";
@@ -83,7 +87,7 @@ export function FileAttachmentField({
         accept={accept}
         required={required && !file}
         // Selected files must remain enabled so the browser includes them in FormData.
-        disabled={disabled || checking}
+        disabled={disabled}
         aria-invalid={problem ? true : undefined}
         onChange={(event) => void choose(event.target.files?.[0] || null)}
       />

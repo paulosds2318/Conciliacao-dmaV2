@@ -85,7 +85,7 @@ function CountsTable({
           <p>{description}</p>
         </div>
       </div>
-      <div className="table-wrap">
+      <div className="table-wrap" tabIndex={0}>
         <table className="dashboard-table dashboard-numbers">
           <thead>
             <tr>
@@ -385,7 +385,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </p>
           </div>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table className="dashboard-table dashboard-numbers">
             <thead>
               <tr>
@@ -453,7 +453,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </p>
           </div>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table className="dashboard-table">
             <thead>
               <tr>
@@ -512,7 +512,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <p>Todas as solicitações dos filtros acima, das mais recentes para as mais antigas.</p>
           </div>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table className="dashboard-table">
             <thead>
               <tr>
@@ -522,7 +522,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 <th>Parceiro</th>
                 <th>Situação</th>
                 <th>Aberta em</th>
-                <th></th>
+                <th>
+                  <span className="sr-only">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -571,7 +573,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             Ver fila completa →
           </Link>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table className="dashboard-table">
             <thead>
               <tr>
@@ -579,7 +581,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 <th>Loja</th>
                 <th>Atendente</th>
                 <th>Aguardando há</th>
-                <th></th>
+                <th>
+                  <span className="sr-only">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -614,7 +618,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <p>Análise da IA não concluída ou envio ao Coral com falha ou sem confirmação, das mais antigas para as mais recentes.</p>
           </div>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table className="dashboard-table">
             <thead>
               <tr>
@@ -623,7 +627,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 <th>Atendente</th>
                 <th>Situação</th>
                 <th>Parada há</th>
-                <th></th>
+                <th>
+                  <span className="sr-only">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>

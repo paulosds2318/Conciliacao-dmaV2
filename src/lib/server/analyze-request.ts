@@ -1,3 +1,4 @@
+import { logAlert } from "@/lib/server/alert-log";
 import { db } from "@/lib/db";
 import { comparePdfs } from "@/lib/server/openrouter";
 import { contractLayoutReasons, voucherDuplicatesContractReasons, voucherIsContractReasons } from "@/lib/server/contract-layout";
@@ -93,6 +94,7 @@ export async function analyzeRequest(requestId: string, version: number, voucher
       db.dmaRequest.update({ where: { id: requestId }, data: { status: "ANALYSIS_FAILED" } }),
       db.auditEvent.create({ data: { requestId, event: "AI_ANALYSIS_FAILED", details: { version, message: message.slice(0, 500) } } }),
     ]);
+    logAlert("ANALISE_FALHOU", requestId);
     return { ok: false as const, error: message };
   }
   const { autoApprove, ...result } = analyzed;

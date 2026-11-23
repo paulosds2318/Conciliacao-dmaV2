@@ -30,11 +30,10 @@ export function TimelineChart({ points, unitLabel }: { points: Point[]; unitLabe
             <span />
             <span />
           </div>
-          <div className="timeline-chart-bars" role="list" aria-label={`Solicitações abertas por ${unitLabel}`}>
+          <div className="timeline-chart-bars" role="group" aria-label={`Solicitações abertas por ${unitLabel}`}>
             {points.map((point, index) => (
               <button
                 type="button"
-                role="listitem"
                 key={point.key}
                 className={`timeline-chart-bar ${active === index ? "active" : ""}`}
                 aria-label={`${point.label}: ${point.value} ${point.value === 1 ? "solicitação" : "solicitações"}`}
@@ -62,7 +61,7 @@ export function TimelineChart({ points, unitLabel }: { points: Point[]; unitLabe
       </div>
       <details className="timeline-chart-table">
         <summary>Ver dados em tabela</summary>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table className="dashboard-table dashboard-numbers">
             <thead>
               <tr>

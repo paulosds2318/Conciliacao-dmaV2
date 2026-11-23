@@ -112,6 +112,7 @@ O próprio deploy cria o primeiro administrador, sem task avulsa. Com `SEED_ADMI
 No ECS, atualize o serviço para a revisão anterior da task definition (ou reexecute o pipeline num commit anterior). As migrações de banco só adicionam estrutura; antes de voltar uma versão que tenha mudado o banco, confirme com o responsável pelo código.
 
 ## Pendências fora do código
+- **Backup, restauração e alarmes:** roteiro de conferência e criação em [operacao-backup-alertas.md](operacao-backup-alertas.md).
 
 - **Usuário de serviço do Coral.** Criar um usuário exclusivo com `BULK_UPDATE_DMA_ELIGIBILITY` e uma permissão de leitura de contrato, sem MFA e com o primeiro acesso concluído. O Coral aceita um token ativo por usuário: não use esse login em nenhum outro lugar.
 - **Endpoint de DMA em produção:** `PUT /api/rentagreement/dma/eligibility` está validado em homologação e precisa ser publicado em `servicescoral.aluguefoco.com.br`.

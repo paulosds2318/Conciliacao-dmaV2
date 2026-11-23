@@ -10,10 +10,10 @@ export function BackToHome() {
   const pathname = usePathname();
   if (HIDDEN_ON.includes(pathname)) return null;
   return (
-    <div className="back-home">
+    <nav className="back-home" aria-label="Voltar ao início">
       <Link className="button secondary" href="/">
         <span aria-hidden="true">←</span> Voltar ao início
       </Link>
-    </div>
+    </nav>
   );
 }

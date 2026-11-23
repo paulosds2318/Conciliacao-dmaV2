@@ -638,7 +638,7 @@ export function RequestDetail() {
           <p>{comparison?.summary || (latest.errorCode ? analysisFailureMessage(latest.errorCode) : "A análise está em andamento.")}</p>
           {comparison?.confidence != null && <p>Confiança estimada: {Math.round(comparison.confidence * 100)}%</p>}
           {comparison?.fields?.length ? (
-            <div className="table-wrap">
+            <div className="table-wrap" tabIndex={0}>
               <table>
                 <thead>
                   <tr>

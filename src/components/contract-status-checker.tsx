@@ -256,7 +256,7 @@ export function ContractStatusChecker() {
               Baixar CSV
             </button>
           </div>
-          <div className="table-wrap">
+          <div className="table-wrap" tabIndex={0}>
             <table>
               <thead>
                 <tr>

@@ -38,7 +38,9 @@ function downloadCsv(state: BatchRunState) {
     ["Contrato", "Ação", "Status", "Detalhe"],
     ...batchRows(state).map((row) => [row.label, actionLabels[row.actionType] ?? row.actionType, row.status, row.detail]),
   ];
-  const csv = "﻿" + rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(";")).join("\r\n");
+  // Células que começam com = + - @ seriam lidas como fórmula pelo Excel; o apóstrofo evita isso.
+  const safe = (cell: string) => (/^\s*[=+@-]/.test(cell) ? `'${cell}` : cell);
+  const csv = "﻿" + rows.map((row) => row.map((cell) => `"${safe(cell).replaceAll('"', '""')}"`).join(";")).join("\r\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
@@ -55,14 +57,21 @@ export function BatchApprovalRun() {
   const [stopping, setStopping] = useState(false);
   const stopRequested = useRef(false);
   const started = useRef(false);
+  const mounted = useRef(false);
+  // Sair da página (por link do próprio sistema) interrompe o lote depois da solicitação em andamento, sem deixar um laço
+  // aprovando em segundo plano sem que a pessoa possa vê-lo ou pará-lo.
+  const leftPage = useRef(false);
+  // O estado mais recente fica numa referência e é gravado direto no armazenamento: assim o progresso é salvo mesmo que a
+  // página já tenha sido fechada, e o atualizador do React não precisa ter efeito colateral.
+  const stateRef = useRef<BatchRunState | null>(null);
 
+  function commit(next: BatchRunState) {
+    stateRef.current = next;
+    saveBatchState(next);
+    if (mounted.current) setState(next);
+  }
   function update(change: (current: BatchRunState) => BatchRunState) {
-    setState((current) => {
-      if (!current) return current;
-      const next = change(current);
-      saveBatchState(next);
-      return next;
-    });
+    if (stateRef.current) commit(change(stateRef.current));
   }
 
   async function begin() {
@@ -74,26 +83,33 @@ export function BatchApprovalRun() {
     // Recarregou com o lote em execução: não retoma sozinho, para nunca aprovar duas vezes a mesma solicitação.
     const initial = saved.phase === "running" ? interruptedBatch(saved, clock()) : saved;
     if (initial !== saved) saveBatchState(initial);
+    stateRef.current = initial;
     setState(initial);
     setLoaded(true);
     if (initial.phase !== "pending") return;
     const startedAt = clock();
     const running: BatchRunState = { ...initial, phase: "running", startedAt };
-    saveBatchState(running);
-    setState(running);
+    commit(running);
     setNow(startedAt);
     void runBatchApproval(running.items, approveOne, {
-      shouldStop: () => stopRequested.current,
+      shouldStop: () => stopRequested.current || leftPage.current,
       onProgress: () => undefined,
       onItem: (item, step: BatchStep) => update((current) => ({ ...current, steps: { ...current.steps, [item.id]: step } })),
     }).then((outcome) => update((current) => ({ ...current, phase: "done", finishedAt: clock(), stoppedBy: outcome.stoppedBy })));
   }
 
-  // Executa uma única vez, ao abrir a página (o ref evita a segunda execução do modo de desenvolvimento).
+  // Executa o lote uma única vez, ao abrir a página (o ref evita a segunda execução do modo de desenvolvimento).
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    void Promise.resolve().then(begin);
+    mounted.current = true;
+    leftPage.current = false;
+    if (!started.current) {
+      started.current = true;
+      void Promise.resolve().then(begin);
+    }
+    return () => {
+      mounted.current = false;
+      leftPage.current = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `begin` só usa refs e setters estáveis
   }, []);
 
@@ -137,8 +153,8 @@ export function BatchApprovalRun() {
   return (
     <main className="shell">
       <div className="backline">
-        <Link href="/analise">← Fila de análise</Link>
-        <span>Aprovação em lote</span>
+        {running ? <span>Aprovação em lote em andamento</span> : <Link href="/analise">← Fila de análise</Link>}
+        {!running && <span>Aprovação em lote</span>}
       </div>
       <header className="page-heading">
         <div className="page-heading-left">
@@ -177,10 +193,11 @@ export function BatchApprovalRun() {
         <div className="notice" role="status">
           {stopping
             ? "Parando: o lote termina a solicitação em andamento e deixa as demais pendentes."
-            : `Aprovando${current ? ` ${current.label}` : ""} no Coral, uma solicitação por vez. Mantenha esta página aberta até terminar.`}
+            : `Aprovando${current ? ` ${current.label}` : ""} no Coral, uma solicitação por vez. Mantenha esta página aberta até terminar; se sair dela, o lote para depois da solicitação em andamento.`}
           <div
             className="batch-bar-track"
             role="progressbar"
+            aria-label="Andamento da aprovação em lote"
             aria-valuemin={0}
             aria-valuemax={counts.total}
             aria-valuenow={counts.finished}
@@ -222,7 +239,7 @@ export function BatchApprovalRun() {
         </article>
       </section>
       <section className="panel">
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table>
             <thead>
               <tr>
@@ -231,7 +248,9 @@ export function BatchApprovalRun() {
                 <th>Ação</th>
                 <th>Status</th>
                 <th>Detalhe</th>
-                <th></th>
+                <th>
+                  <span className="sr-only">Abrir solicitação</span>
+                </th>
               </tr>
             </thead>
             <tbody>

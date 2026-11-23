@@ -1,3 +1,4 @@
+import { logAlert } from "@/lib/server/alert-log";
 import { db } from "@/lib/db";
 
 /** A análise (até 2 min) e o envio ao Coral (até 20 s) rodam em segundo plano; passado este prazo, o processo foi interrompido. */
@@ -20,6 +21,7 @@ export async function recoverStaleRequests(where: { id?: string; requesterId?: s
           where: { id: item.id, status: "ANALYZING", updatedAt: { lt: cutoff } },
           data: { status: "ANALYSIS_FAILED" },
         });
+        if (changed.count) logAlert("PROCESSO_INTERROMPIDO", item.id);
         if (changed.count)
           await tx.auditEvent.create({
             data: {
@@ -35,6 +37,7 @@ export async function recoverStaleRequests(where: { id?: string; requesterId?: s
         data: { status: "EXECUTION_UNCERTAIN" },
       });
       if (!changed.count) return;
+      logAlert("PROCESSO_INTERROMPIDO", item.id);
       await tx.executionAttempt.updateMany({
         where: { requestId: item.id, status: "IN_PROGRESS" },
         data: { status: "UNCERTAIN", errorCode: "PROCESSO_INTERROMPIDO", completedAt: new Date() },

@@ -145,7 +145,7 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
   const allShownSelected = shownSelectable.length > 0 && shownSelectable.every((item) => selected.has(item.id));
   const anyDivergence = filteredRows.some(hasDivergence);
   function toggleRow(id: string) {
-    if (!selected.has(id) && selected.size >= MAX_BATCH_SIZE) {
+    if (!selected.has(id) && selectedRows.length >= MAX_BATCH_SIZE) {
       setActionMessage(`O lote aceita até ${MAX_BATCH_SIZE} solicitações por vez.`);
       return;
     }
@@ -162,7 +162,12 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
       if (allShownSelected) {
         for (const item of shownSelectable) next.delete(item.id);
       } else {
-        for (const item of shownSelectable) if (next.size < MAX_BATCH_SIZE) next.add(item.id);
+        let count = selectedRows.length;
+        for (const item of shownSelectable) {
+          if (count >= MAX_BATCH_SIZE) break;
+          if (!next.has(item.id)) count += 1;
+          next.add(item.id);
+        }
       }
       return next;
     });
@@ -450,7 +455,7 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
             </select>
           </label>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table>
             <thead>
               <tr>
@@ -470,7 +475,9 @@ export function RequestList({ adminQueue = false, initialView = "pending" }: { a
                 {adminQueue && <th>Atendente</th>}
                 <th>Status</th>
                 <th>Atualizado</th>
-                <th></th>
+                <th>
+                  <span className="sr-only">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>

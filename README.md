@@ -168,6 +168,7 @@ npm run dev
 npm run build
 npm run lint
 npm test                    # testes unitários (node:test), inclusive o cliente Coral
+npm run test:e2e            # testes de tela em navegador real, com dados fictícios e Coral simulado (veja test/e2e/README.md)
 npm run db:generate
 npm run db:migrate          # cria uma nova migração após alterar prisma/schema.prisma
 npm run db:migrate:deploy   # aplica as migrações pendentes (o container faz isso ao iniciar)

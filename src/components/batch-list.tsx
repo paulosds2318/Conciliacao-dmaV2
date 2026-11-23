@@ -57,7 +57,7 @@ export function BatchList() {
           {error}
         </div>
       )}
-      <div className="table-wrap">
+      <div className="table-wrap" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -66,7 +66,9 @@ export function BatchList() {
               <th>Status</th>
               <th>Resultados</th>
               <th>Data</th>
-              <th></th>
+              <th>
+                <span className="sr-only">Ações</span>
+              </th>
             </tr>
           </thead>
           <tbody>

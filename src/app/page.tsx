@@ -125,7 +125,7 @@ export default async function HomePage() {
             {isAdmin ? "Ver todas" : "Ver minhas solicitações"} →
           </Link>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table className="dashboard-table">
             <thead>
               <tr>
@@ -134,7 +134,9 @@ export default async function HomePage() {
                 {isAdmin && <th>Atendente</th>}
                 <th>Situação</th>
                 <th>Atualizado</th>
-                <th></th>
+                <th>
+                  <span className="sr-only">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>

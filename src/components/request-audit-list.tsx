@@ -231,7 +231,7 @@ export function RequestAuditList({ embedded = false }: { embedded?: boolean }) {
             </select>
           </label>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0}>
           <table>
             <thead>
               <tr>
@@ -240,7 +240,9 @@ export function RequestAuditList({ embedded = false }: { embedded?: boolean }) {
                 <th>Atendente</th>
                 <th>Status</th>
                 <th>Atualizada</th>
-                <th></th>
+                <th>
+                  <span className="sr-only">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>
