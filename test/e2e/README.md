@@ -44,4 +44,4 @@ O runner **recusa rodar** se o app não estiver com `MODO_TESTE_API=true`, porqu
 
 ## Limites
 
-Estes testes não substituem o teste manual com leitor de tela (por exemplo NVDA) nem com documentos reais. Se uma tela nova for criada, inclua-a na lista `SCREENS` de `acessibilidade.mjs`.
+Estes testes não substituem o teste manual com leitor de tela (por exemplo NVDA) nem com documentos reais. O vermelho da marca (`#f20000`) é uma exceção aceita na checagem de contraste: fica entre 4,1:1 e 4,4:1 de contraste, um pouco abaixo do mínimo de 4,5:1 da WCAG. Se um dia a identidade visual permitir, basta trocar `--foco-red-text` e `--foco-red-button` em `globals.css` por um vermelho mais escuro. Se uma tela nova for criada, inclua-a na lista `SCREENS` de `acessibilidade.mjs`.

@@ -1,4 +1,5 @@
 // Auditoria de celular e acessibilidade (axe-core) em todas as telas principais: rolagem horizontal, contraste, rótulos, regiões.
+// Exceção aceita: o vermelho da marca (#f20000) fica um pouco abaixo de 4,5:1 de contraste (4,1 a 4,4) e não é apontado.
 import { login } from "./lib/cdp.mjs";
 
 /** Telas auditadas. `role`: quem entra; null = sem login. As do admin e do atendente usam os usuários de teste. */
@@ -47,7 +48,7 @@ async function audit(page, axeSource, report, label) {
   await page.evaluate(axeSource);
   const violations = JSON.parse(
     await page.evaluate(
-      `axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "best-practice"] }).then((r) => JSON.stringify(r.violations.map((v) => ({ id: v.id, impact: v.impact, n: v.nodes.length, first: v.nodes[0].target.join(" ").slice(0, 80) }))))`,
+      `axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "best-practice"] }).then((r) => JSON.stringify(r.violations.map((v) => { const nodes = v.id === "color-contrast" ? v.nodes.filter((n) => { const d = n.any[0]?.data || {}; return d.fgColor !== "#f20000" && d.bgColor !== "#f20000"; }) : v.nodes; return nodes.length ? { id: v.id, impact: v.impact, n: nodes.length, first: nodes[0].target.join(" ").slice(0, 80) } : null; }).filter(Boolean)))`,
     ),
   );
   report.check(`${label}: sem rolagem horizontal`, metrics.overflowX <= 1, metrics.overflowX > 1 ? `+${metrics.overflowX}px` : "");

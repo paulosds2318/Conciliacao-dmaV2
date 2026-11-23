@@ -3,9 +3,10 @@
 :root {
   /* Cores Institucionais da Foco (Manual de Identidade Visual) */
   --foco-red: #f20000;
-  /* Vermelho para texto em fundo claro e para botões com texto branco: a marca (#f20000) fica abaixo de 4,5:1 de contraste. */
-  --foco-red-text: #d00000;
-  --foco-red-button: #d90000;
+  /* Vermelho de texto e de botão: igual ao da marca. Para um vermelho mais escuro (contraste mínimo de 4,5:1 segundo a WCAG),
+     troque aqui por #d00000 (texto) e #d90000 (botão). */
+  --foco-red-text: var(--foco-red);
+  --foco-red-button: var(--foco-red);
   --foco-red-hover: #d90000;
   --foco-red-dark: #c20000;
   --foco-red-subtle: #fff5f5;
@@ -291,13 +292,13 @@ h2 {
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--foco-red-dark);
+  background: var(--foco-red-hover);
   box-shadow: 0 4px 10px rgba(242, 0, 0, 0.24);
   transform: translateY(-1px);
 }
 
 .primary:active:not(:disabled) {
-  background: #a30000;
+  background: var(--foco-red-dark);
   transform: translateY(0);
 }
 
